@@ -1,12 +1,12 @@
+import sqlite3
 import database
 
 dept_info = {
-    "dept_id" : None,
     "name" : None,
     "parent_id" : None,
 }
 
-def create_dept(dept_id, name, parent_id):
+def create_dept(name, parent_id=None):
     return
 
 def delete_dept(dept_id):
