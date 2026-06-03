@@ -46,5 +46,15 @@ def add_employee(employee_data: dict):
     conn.commit()
     conn.close()
 
+def add_dept(dept_data: dict):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO departments 
+        (name, parent_id)
+        VALUES (:name, :parent_id)
+    """, dept_data)
+    conn.commit()
+    conn.close()
 
 
