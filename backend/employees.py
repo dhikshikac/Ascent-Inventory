@@ -1,5 +1,6 @@
 import sqlite3
-import database
+from backend import database
+from backend import departments
 
 """
     Template for containing employee information in a dictionary.

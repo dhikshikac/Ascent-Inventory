@@ -1,5 +1,5 @@
 import sqlite3
-import database
+from backend import database
 
 dept_info = {
     "name" : None,

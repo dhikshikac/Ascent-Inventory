@@ -1,7 +1,7 @@
 import sqlite3
 
 def get_connection():
-    return sqlite3.connect("inventory.db")
+    return sqlite3.connect("backend/inventory.db")
 
 def init():
     conn = get_connection()
@@ -14,7 +14,7 @@ def init():
             parent_id INTEGER REFERENCES departments(id)
         )
     """)
-    
+
     c.execute("""
         CREATE TABLE IF NOT EXISTS employees (
             employee_id TEXT PRIMARY KEY,
