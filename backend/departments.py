@@ -10,13 +10,13 @@ dept_info = {
     "parent_id" : None,
 }
 
-"""""
+"""
     Adds a new department into the database.
     Requires name. 
     Optional fields include parent_id
     Does nothing if the department already exists.
 """
-def add_dept(name, parent_id = None):
+def add_dept(name, parent_id=None):
     if dept_exists(name):
         print("This department already exists.")
         return
