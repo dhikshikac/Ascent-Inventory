@@ -27,3 +27,5 @@ def show_employee_list(dept_id, dept_name):
 show_home()
 window.show()
 sys.exit(app.exec())
+
+#main testing
