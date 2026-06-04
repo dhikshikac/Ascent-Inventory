@@ -56,23 +56,55 @@ def get_dept(name):
 
 """
     Deletes the department with the given name from the database.
+
+    If the department is a sub-department, all its employees are automatically reassigned to the parent department.
+
+    If the department is a parent department, on_delete_dept determines what happens to its employees:
+        "delete" will delete all employees in the department.
+        "unassign" will set the dept_id of all employees in the department to None.
+
+    Also raises a ValueError if the department if the department still has existing sub-departments.
+
     Returns True on success, False if the department does not exist.
 """
-def delete_dept(name):
+def delete_dept(name, on_delete_dept=None):
     if not dept_exists(name):
         print("Department does not exist.")
         return False
     
     dept = get_dept(name)
     dept_id = dept["id"]
+    parent_id = dept["parent_id"]
     
     conn = database.get_connection()
     c = conn.cursor()
+
+    c.execute("SELECT COUNT(*) FROM employees WHERE dept_id = ?", (dept_id,))
+
+    if c.fetchone()[0] > 0:
+        conn.close()
+        raise ValueError(f"Cannot delete '{name}' department. It still has existing sub-departments.")
+    
+    c.execute("SELECT * FROM employees WHERE dept_id = ?", (dept_id,))
+    has_employees = c.fetchone()[0] > 0
+
+    if has_employees:
+        if parent_id is not None:
+            c.execute("UPDATE employees SET dept_id = ? WHERE dept_id = ?", (parent_id, dept_id))
+        else:
+            if on_delete_dept == "delete":
+                c.execute("DELETE FROM employees WHERE dept_id = ?", (dept_id,))
+            elif on_delete_dept == "unassign":
+                c.execute("UPDATE employees SET dept_id = NULL WHERE dept_id = ?", (dept_id,))
+            else:
+                conn.close()
+                raise ValueError("Cannot determine action for employees. Select either 'delete' or 'unassign'.")
     
     c.execute("DELETE FROM departments WHERE id = ?", (dept_id,))
-    
+
     conn.commit()
     conn.close()
+
     return True
 
 """

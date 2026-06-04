@@ -1,12 +1,19 @@
 import sqlite3
+import os
+
+_DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 
 def get_connection():
-    return sqlite3.connect("backend/inventory.db")
+    conn = sqlite3.connect(_DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 def init():
     conn = get_connection()
     c = conn.cursor()
-    
+
+    c.execute("PRAGMA foreign_keys = ON")
+
     c.execute("""
         CREATE TABLE IF NOT EXISTS departments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
