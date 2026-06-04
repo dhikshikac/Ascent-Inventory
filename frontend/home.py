@@ -114,3 +114,5 @@ class HomeScreen(QWidget):
     def filter_depts(self, text):
         filtered = [d for d in self.all_depts if text.lower() in d["name"].lower()]
         self.render_cards(filtered)
+
+        #hi 
