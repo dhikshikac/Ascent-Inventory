@@ -22,6 +22,7 @@ des = departments.get_dept("Design")["id"]
 
 employees.add_employee("E001", eng, "Sarah", "Chen")
 employees.add_employee("E002", eng, "Marcus", "Williams")
+employees.add_employee("E008", eng, "oarcus", "Williams")
 employees.add_employee("E003", eng, "Elena", "Rodriguez")
 employees.add_employee("E004", des, "James", "Park")
 employees.add_employee("E005", des, "Priya", "Patel")
