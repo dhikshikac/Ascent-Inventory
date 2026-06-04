@@ -4,7 +4,7 @@ import backend.employees as employees
 
 database.init()
 
-# Add departments
+# add departments
 
 departments.add_dept("Engineering")
 departments.add_dept("Design")
@@ -15,14 +15,19 @@ departments.add_dept("Sales")
 departments.add_dept("Finance")
 departments.add_dept("IT")
 
-# Add some employees
+# add employees
 
 eng = departments.get_dept("Engineering")["id"]
 des = departments.get_dept("Design")["id"]
 
 employees.add_employee("E001", eng, "Sarah", "Chen")
 employees.add_employee("E002", eng, "Marcus", "Williams")
+
+
+employees.add_employee("E009", eng, "oarcus", "Williams")
 employees.add_employee("E008", eng, "oarcus", "Williams")
+
+
 employees.add_employee("E003", eng, "Elena", "Rodriguez")
 employees.add_employee("E004", des, "James", "Park")
 employees.add_employee("E005", des, "Priya", "Patel")
