@@ -2,8 +2,10 @@ import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from frontend.home import HomeScreen
 import backend.database as database
+from seed import seed
 
 database.init()
+seed()
 
 app = QApplication(sys.argv)
 

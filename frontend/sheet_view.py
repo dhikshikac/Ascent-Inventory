@@ -3,21 +3,22 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QListWidget, QTableWidget, QTableWidgetItem, QLabel 
-)
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import *
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QFont, QColor, QAction, QKeySequence
 
 import backend.database as database
 import backend.departments as departments
 import backend.employees as employees
 
-database.init()
-
 class SheetView(QMainWindow):
     def __init__(self):
         super().__init__()
+        database.init()
+        
+        from seed import seed
+        seed()
+
         self.setWindowTitle("Ascent Inventory Sheet")
         self.resize(800, 600)
 
