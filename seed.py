@@ -26,4 +26,4 @@ employees.add_employee("E003", eng, "Elena", "Rodriguez")
 employees.add_employee("E004", des, "James", "Park")
 employees.add_employee("E005", des, "Priya", "Patel")
 
-print("Database seeded!")
+employees.delete_employee("E676767")

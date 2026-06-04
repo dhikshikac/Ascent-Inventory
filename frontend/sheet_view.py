@@ -52,7 +52,7 @@ class SheetView(QMainWindow):
         self.dept_list.addItems(["All Employees"])
         for dept in self.all_depts:
             parent = next((d for d in self.all_depts if d["id"] == dept["parent_id"]), None)
-            prefix = "  └ " * (dept["parent_id"] - 1)
+            prefix = "  └ " if parent else ""
             self.dept_list.addItem(f"{prefix}{dept['name']}")
 
         self.dept_list.setCurrentRow(0)
@@ -62,11 +62,11 @@ class SheetView(QMainWindow):
             self.show_employees(employees.get_all_employees())
         else:
             dept = self.all_depts[row - 1]
-            self.show_employees(employees.get_employees_by_department(dept["id"]))
+            self.show_employees(employees.get_employees_by_dept(dept["id"]))
         
     def show_employees(self, employee_list):
         columns = ["employee_id", "first_name", "last_name", "dept_id", "pc_model", "monitor_model", "ram", "storage", "os_version", "webcam_specs", "desk_phone", "notes"]
-        headers = ["ID", "First Name", "Last Name", "Department ID", "PC", "Monitor", "RAM", "Storage", "OS Version", "Webcam", "Desk Phone", "Notes"]
+        headers = ["ID", "First Name", "Last Name", "Department", "PC", "Monitor", "RAM", "Storage", "OS Version", "Webcam", "Desk Phone", "Notes"]
 
         self.employee_table.setRowCount(len(employee_list))
         self.employee_table.setColumnCount(len(columns))
@@ -74,7 +74,10 @@ class SheetView(QMainWindow):
 
         for row, emp in enumerate(employee_list):
             for col, key in enumerate(columns):
-                val = emp.get(key)
+                if(key == "dept_id"):
+                    val = departments.get_name(emp.get("dept_id"))
+                else:
+                    val = emp.get(key)
                 item = QTableWidgetItem(str(val) if val is not None else "")
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
                 self.employee_table.setItem(row, col, item)

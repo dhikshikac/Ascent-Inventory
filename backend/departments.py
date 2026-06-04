@@ -55,6 +55,21 @@ def get_dept(name):
     return dict(result) if result else None
 
 """
+    Returns the name of a department or "Unassigned" if not found.
+"""
+def get_name(dept_id):
+    if dept_id is None:
+        return "Unassigned"
+    conn = database.get_connection()
+    c = conn.cursor()
+    
+    c.execute("SELECT name FROM departments WHERE id = ?", (dept_id,))
+    
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else "Unassigned"
+
+"""
     Deletes the department with the given name from the database.
 
     If the department is a sub-department, all its employees are automatically reassigned to the parent department.
