@@ -1,8 +1,18 @@
+import sys
+from PyQt6.QtWidgets import QApplication, QMainWindow
+from frontend.home import HomeScreen
 import backend.database as database
-import backend.employees as employees
 
 database.init()
 
-employees.add_employee("E001", 1, "John", "Smith", pc_model="Dell XPS", ram="16GB")
-employees.add_employee("E676767", 1, "Christopher", "Bruh")
-print(employees.get_employee("E001"))
+app = QApplication(sys.argv)
+
+window = QMainWindow()
+window.setWindowTitle("Ascent Inventory")
+window.resize(1000, 700)
+
+home = HomeScreen()
+window.setCentralWidget(home)
+
+window.show()
+sys.exit(app.exec())
