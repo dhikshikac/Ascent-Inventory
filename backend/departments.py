@@ -5,10 +5,12 @@ from backend import database
     Template for containing department information in a dictionary.
     Initializes all values to be None.
 """
+
 dept_info = {
     "name" : None,
     "parent_id" : None,
 }
+
 
 """
     Adds a new department into the database.
@@ -16,16 +18,17 @@ dept_info = {
     Optional fields include parent_id
     Does nothing if the department already exists.
 """
+
 def add_dept(name, parent_id=None):
     if dept_exists(name):
         print("This department already exists.")
-        return
+        return None
 
     new_dept = dept_info.copy()
     new_dept["name"] = name
     new_dept["parent_id"] = parent_id
 
-    database.add_dept(new_dept)
+    return database.add_dept(new_dept)   # ← now returns the new id
 
 """
     Returns True if an department with the given name exists, False otherwise.
@@ -175,7 +178,15 @@ def get_subdepts(name):
     conn.close()
     return subdepts
 
-
+def get_subdepts_by_id(dept_id):
+    """Returns a list of sub-departments by parent dept_id (integer)."""
+    conn = database.get_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM departments WHERE parent_id = ?", (dept_id,))
+    subdepts = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return subdepts
 
 
 
