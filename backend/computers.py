@@ -2,7 +2,7 @@ import sqlite3
 from backend import database
 
 computer_template = {
-    "computer_type": "employee",   # 'employee' | 'shared' | 'lab_shared'
+    "computer_type": "employee", 
     "employee_id": None,
     "dept_id": None,
     "lab_id": None,
@@ -51,7 +51,9 @@ def get_computers_by_employee(employee_id):
     return results
 
 def get_computers_by_dept(dept_id):
-    """Get all shared computers for a department (not employee-linked)."""
+    """
+    Get all shared computers for a department (not employee-linked).
+    """
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()

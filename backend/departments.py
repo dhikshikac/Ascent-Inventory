@@ -5,21 +5,18 @@ from backend import database
     Template for containing department information in a dictionary.
     Initializes all values to be None.
 """
-
 dept_info = {
     "name" : None,
     "parent_id" : None,
 }
 
-
-"""
+def add_dept(name, parent_id=None):
+    """
     Adds a new department into the database.
     Requires name. 
     Optional fields include parent_id
     Does nothing if the department already exists.
-"""
-
-def add_dept(name, parent_id=None):
+    """
     if dept_exists(name):
         print("This department already exists.")
         return None
@@ -30,10 +27,10 @@ def add_dept(name, parent_id=None):
 
     return database.add_dept(new_dept)   # ← now returns the new id
 
-"""
-    Returns True if an department with the given name exists, False otherwise.
-"""
 def dept_exists(name):
+    """
+    Returns True if an department with the given name exists, False otherwise.
+    """
     conn = database.get_connection()
     c = conn.cursor()
     
@@ -43,10 +40,10 @@ def dept_exists(name):
     conn.close()
     return result is not None
 
-"""
-    Returns a dict of department information or None if department is not found.
-"""
 def get_dept(name):
+    """
+    Returns a dict of department information or None if department is not found.
+    """
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -57,10 +54,10 @@ def get_dept(name):
     conn.close()
     return dict(result) if result else None
 
-"""
-    Returns the name of a department or "Unassigned" if not found.
-"""
 def get_name(dept_id):
+    """
+    Returns the name of a department or "Unassigned" if not found.
+    """
     if dept_id is None:
         return "Unassigned"
     conn = database.get_connection()
@@ -72,7 +69,8 @@ def get_name(dept_id):
     conn.close()
     return result[0] if result else "Unassigned"
 
-"""
+def delete_dept(name, on_delete_dept=None):
+    """
     Deletes the department with the given name from the database.
 
     If the department is a sub-department, all its employees are automatically reassigned to the parent department.
@@ -84,8 +82,7 @@ def get_name(dept_id):
     Also raises a ValueError if the department if the department still has existing sub-departments.
 
     Returns True on success, False if the department does not exist.
-"""
-def delete_dept(name, on_delete_dept=None):
+    """
     if not dept_exists(name):
         print("Department does not exist.")
         return False
@@ -125,12 +122,12 @@ def delete_dept(name, on_delete_dept=None):
 
     return True
 
-"""
+def edit_dept(name, new_name):
+    """
     Updates fields of an existing department.
     The only editable field acceptable is name; invalid keys are ignored.
     Returns True on success, False if the department does not exist or no valid fields were provided.
-"""
-def edit_dept(name, new_name):
+    """
     if not dept_exists(name):
         print("Department does not exist.")
         return False
@@ -144,10 +141,10 @@ def edit_dept(name, new_name):
     conn.close()
     return True
 
-"""
-    Returns a dict of all departments in the database.
-"""
 def get_all_depts():
+    """
+    Returns a dict of all departments in the database.
+    """
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -158,10 +155,10 @@ def get_all_depts():
     conn.close()
     return all_depts
 
-"""
-    Returns a dict of all subdepartments of a parent department in the database.
-"""
 def get_subdepts(name):
+    """
+    Returns a dict of all subdepartments of a parent department in the database.
+    """
     if not dept_exists(name):
         print("Department does not exist.")
         return False
@@ -179,7 +176,9 @@ def get_subdepts(name):
     return subdepts
 
 def get_subdepts_by_id(dept_id):
-    """Returns a list of sub-departments by parent dept_id (integer)."""
+    """
+    Returns a list of sub-departments by parent dept_id (integer).
+    """
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()

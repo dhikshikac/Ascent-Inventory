@@ -14,7 +14,6 @@ def init():
 
     c.execute("PRAGMA foreign_keys = ON")
 
-    # Departments (unchanged)
     c.execute("""
         CREATE TABLE IF NOT EXISTS departments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,7 +22,6 @@ def init():
         )
     """)
 
-    # Employees — computer specs removed
     c.execute("""
         CREATE TABLE IF NOT EXISTS employees (
             employee_id TEXT PRIMARY KEY,
@@ -34,10 +32,6 @@ def init():
         )
     """)
 
-    # Computers — stand-alone, optionally linked to employee OR lab
-    # computer_type: 'employee' | 'shared' | 'lab_shared'
-    # employee_id: set if assigned to an employee
-    # lab_id: set if this is a lab computer (references departments.id for a lab sub-dept)
     c.execute("""
         CREATE TABLE IF NOT EXISTS computers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +50,6 @@ def init():
         )
     """)
 
-    # Instruments — linked to a lab sub-department
     c.execute("""
         CREATE TABLE IF NOT EXISTS instruments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +60,6 @@ def init():
         )
     """)
 
-    # Labs — hard-coded names seeded at init, extensible
     c.execute("""
         CREATE TABLE IF NOT EXISTS labs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
