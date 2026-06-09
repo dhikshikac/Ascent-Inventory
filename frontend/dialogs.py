@@ -287,7 +287,7 @@ class EditComputerDialog(QDialog):
         form.addRow("Desk Phone",    self._phone)
  
         self._notes = QTextEdit()
-            self._notes.setPlainText(computer.get("notes") or "")
+        self._notes.setPlainText(computer.get("notes") or "")
         self._notes.setFixedHeight(60)
         form.addRow("Notes", self._notes)
  
