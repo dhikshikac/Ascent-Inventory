@@ -62,6 +62,43 @@ def get_computers_by_dept(dept_id):
     conn.close()
     return results
 
+def get_computers_by_depts(dept_ids):
+    """
+    Get shared computers assigned directly to any department in dept_ids.
+    Employee-linked computers are shown as employee device previews instead.
+    """
+    if not dept_ids:
+        return []
+    placeholders = ",".join("?" for _ in dept_ids)
+    conn = database.get_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute(f"""
+        SELECT * FROM computers
+        WHERE employee_id IS NULL
+        AND (dept_id IN ({placeholders}) OR lab_id IN ({placeholders}))
+        ORDER BY id
+    """, dept_ids + dept_ids)
+    results = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return results
+
+def get_computers_by_employees(employee_ids):
+    if not employee_ids:
+        return []
+    placeholders = ",".join("?" for _ in employee_ids)
+    conn = database.get_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute(f"""
+        SELECT * FROM computers
+        WHERE employee_id IN ({placeholders})
+        ORDER BY employee_id, id
+    """, employee_ids)
+    results = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return results
+
 def get_computers_by_lab(lab_id):
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row

@@ -69,6 +69,88 @@ def get_name(dept_id):
     conn.close()
     return result[0] if result else "Unassigned"
 
+def get_descendant_ids(dept_id, include_self=True):
+    """
+    Returns department ids under dept_id, including nested sub-departments.
+    """
+    conn = database.get_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT id, parent_id FROM departments")
+    all_depts = [dict(row) for row in c.fetchall()]
+    conn.close()
+
+    children_map: dict[int, list[int]] = {}
+    for dept in all_depts:
+        parent_id = dept["parent_id"]
+        if parent_id is not None:
+            children_map.setdefault(parent_id, []).append(dept["id"])
+
+    ids: list[int] = []
+
+    def collect(current_id: int):
+        ids.append(current_id)
+        for child_id in children_map.get(current_id, []):
+            collect(child_id)
+
+    collect(dept_id)
+    return ids if include_self else ids[1:]
+
+def delete_dept_by_id(dept_id):
+    """
+    Deletes a department and any sub-departments, including related employees,
+    employee computers, shared/lab computers, and instruments.
+    """
+    conn = database.get_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    c.execute("SELECT 1 FROM departments WHERE id = ?", (dept_id,))
+    if c.fetchone() is None:
+        conn.close()
+        return False
+
+    c.execute("SELECT id, parent_id FROM departments")
+    all_depts = [dict(row) for row in c.fetchall()]
+    children_map: dict[int, list[int]] = {}
+    for dept in all_depts:
+        parent_id = dept["parent_id"]
+        if parent_id is not None:
+            children_map.setdefault(parent_id, []).append(dept["id"])
+
+    dept_ids: list[int] = []
+
+    def collect(current_id: int):
+        dept_ids.append(current_id)
+        for child_id in children_map.get(current_id, []):
+            collect(child_id)
+
+    collect(dept_id)
+    placeholders = ",".join("?" for _ in dept_ids)
+
+    c.execute(f"SELECT employee_id FROM employees WHERE dept_id IN ({placeholders})", dept_ids)
+    employee_ids = [row["employee_id"] for row in c.fetchall()]
+    if employee_ids:
+        employee_placeholders = ",".join("?" for _ in employee_ids)
+        c.execute(
+            f"DELETE FROM computers WHERE employee_id IN ({employee_placeholders})",
+            employee_ids,
+        )
+
+    c.execute(
+        f"DELETE FROM computers WHERE dept_id IN ({placeholders}) OR lab_id IN ({placeholders})",
+        dept_ids + dept_ids,
+    )
+    c.execute(f"DELETE FROM instruments WHERE lab_id IN ({placeholders})", dept_ids)
+    c.execute(f"DELETE FROM employees WHERE dept_id IN ({placeholders})", dept_ids)
+
+    for current_id in reversed(dept_ids):
+        c.execute("DELETE FROM departments WHERE id = ?", (current_id,))
+
+    conn.commit()
+    conn.close()
+    return True
+
 def delete_dept(name, on_delete_dept=None):
     """
     Deletes the department with the given name from the database.

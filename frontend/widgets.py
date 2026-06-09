@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QHBoxLayout, QListWidget, QTableWidget,
-    QTableWidgetItem, QAbstractItemView, QFrame, QSizePolicy, QPushButton
+    QTableWidgetItem, QAbstractItemView, QFrame, QSizePolicy, QPushButton,
+    QStyledItemDelegate, QStyle
 )
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QFont, QColor
@@ -61,6 +62,7 @@ def empty_state(message: str) -> QWidget:
 
 def field_pair(label_text: str, value_text:str, parent=None) -> QWidget:
     widget = QWidget(parent)
+    widget.setObjectName("FieldPair")
     layout = QVBoxLayout(widget)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(2)
@@ -89,6 +91,21 @@ _HOVER_COLOR   = QColor("#DBEAFE")
 _DEFAULT_COLOR = QColor("#FFFFFF")
 _SELECTED_COLOR = QColor("#7E9DDE")
 
+class HoverRowDelegate(QStyledItemDelegate):
+    """Paints the hovered table row across every cell."""
+
+    def paint(self, painter, option, index):
+        table = self.parent()
+        if (
+            isinstance(table, HoverTableWidget)
+            and index.row() == table.hovered_row()
+            and not (option.state & QStyle.StateFlag.State_Selected)
+        ):
+            painter.save()
+            painter.fillRect(option.rect, _HOVER_COLOR)
+            painter.restore()
+        super().paint(painter, option, index)
+
 class HoverTableWidget(QTableWidget):
     """QTableWidget that highlights the entire hovered row."""
 
@@ -98,6 +115,8 @@ class HoverTableWidget(QTableWidget):
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
         self.viewport().installEventFilter(self)
+        self.setItemDelegate(HoverRowDelegate(self))
+        self.cellEntered.connect(self._on_cell_entered)
 
     def eventFilter(self, source, event):
         if source is self.viewport():
@@ -115,10 +134,25 @@ class HoverTableWidget(QTableWidget):
                 self._repaint_row(old_row)
         return super().eventFilter(source, event)
 
+    def _on_cell_entered(self, row: int, _column: int):
+        if row != self._hovered_row:
+            old_row = self._hovered_row
+            self._hovered_row = row
+            self._repaint_row(old_row)
+            self._repaint_row(row)
+
+    def repaint_all_rows(self):
+        for row in range(self.rowCount()):
+            self._repaint_row(row)
+        self.viewport().update()
+
+    def hovered_row(self) -> int:
+        return self._hovered_row
+
     def _repaint_row(self, row: int):
         if row < 0 or row >= self.rowCount():
             return
-        is_selected = len(self.selectedItems()) > 0 and self.selectedItems()[0].row() == row
+        is_selected = any(item.row() == row for item in self.selectedItems())
         if is_selected:
             color = _SELECTED_COLOR
         elif row == self._hovered_row:
@@ -129,6 +163,7 @@ class HoverTableWidget(QTableWidget):
             item = self.item(row, col)
             if item:
                 item.setBackground(color)
+        self.viewport().update()
 
     def selectionChanged(self, selected, deselected):
         super().selectionChanged(selected, deselected)

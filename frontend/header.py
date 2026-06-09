@@ -48,3 +48,7 @@ class HeaderBar(QWidget):
     def clear_search(self):
         if hasattr(self, "_search"):
             self._search.clear()
+
+    def set_search_visible(self, visible: bool):
+        if hasattr(self, "_search"):
+            self._search.setVisible(visible)
