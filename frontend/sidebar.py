@@ -17,6 +17,7 @@ class DeptTree(QTreeWidget):
         super().__init__(parent)
         self.setHeaderHidden(True)
         self.setIndentation(16)
+        self.setRootIsDecorated(False)
         self.setAnimated(True) 
         self.itemClicked.connect(self._on_click)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -33,16 +34,18 @@ class DeptTree(QTreeWidget):
             if d["parent_id"] is not None:
                 children_map.setdefault(d["parent_id"], []).append(d)
         
-        def add_item(parent_widget, dept):
+        def add_item(parent_widget, dept, depth=0):
             item = QTreeWidgetItem(parent_widget)
-            item.setText(0, dept["name"])
+            prefix = ("  " * (depth - 1) + "L ") if depth else ""
+            item.setText(0, f"{prefix}{dept['name']}")
             item.setData(0, Qt.ItemDataRole.UserRole, dept["id"])
+            item.setData(0, Qt.ItemDataRole.UserRole + 1, dept["name"])
             item.setExpanded(True)
 
             if dept["id"] == selected_id:
                 item.setSelected(True)
             for child in children_map.get(dept["id"], []):
-                add_item(item, child)
+                add_item(item, child, depth + 1)
             return item
         
         for root_dept in roots:
@@ -53,7 +56,7 @@ class DeptTree(QTreeWidget):
     
     def _on_click(self, item: QTreeWidgetItem):
         dept_id = item.data(0, Qt.ItemDataRole.UserRole)
-        dept_name = item.text(0)
+        dept_name = item.data(0, Qt.ItemDataRole.UserRole + 1)
         self.dept_selected.emit(dept_id, dept_name)
 
 class AddDeptDialog(QDialog):
@@ -93,6 +96,9 @@ class AddDeptDialog(QDialog):
         ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
         ok_button.setObjectName("PrimaryBtn")
         ok_button.setText("Add")
+        cancel_button = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        cancel_button.setObjectName("GhostBtn")
+        cancel_button.setText("Cancel")
         layout.addWidget(buttons)
     
     def _accept(self):
@@ -128,7 +134,7 @@ class Sidebar(QWidget):
         layout.addWidget(h_separator())
 
         self._tree = DeptTree()
-        self._tree.dept_selected.connect(self.dept_selected)
+        self._tree.dept_selected.connect(self._on_dept_selected)
         layout.addWidget(self._tree, 1)
 
         layout.addWidget(h_separator())
@@ -146,6 +152,15 @@ class Sidebar(QWidget):
     
     def refresh(self):
         self._tree.refresh(self._selected_id)
+
+    def clear_selection(self):
+        self._selected_id = None
+        self._tree.clearSelection()
+        self.refresh()
+
+    def _on_dept_selected(self, dept_id: int, dept_name: str):
+        self._selected_id = dept_id
+        self.dept_selected.emit(dept_id, dept_name)
 
     def _add_dept(self):
         dlg = AddDeptDialog(self)

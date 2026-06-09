@@ -62,6 +62,41 @@ def get_computers_by_dept(dept_id):
     conn.close()
     return results
 
+def get_computers_for_depts(dept_ids, employee_ids=None):
+    """
+    Get all computers attached to departments, labs, or employees in a department tree.
+    """
+    if not dept_ids and not employee_ids:
+        return []
+
+    conn = database.get_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    clauses = []
+    params = []
+    if dept_ids:
+        placeholders = ",".join("?" for _ in dept_ids)
+        clauses.extend([
+            f"dept_id IN ({placeholders})",
+            f"lab_id IN ({placeholders})",
+        ])
+        params.extend(dept_ids)
+        params.extend(dept_ids)
+    if employee_ids:
+        placeholders = ",".join("?" for _ in employee_ids)
+        clauses.append(f"employee_id IN ({placeholders})")
+        params.extend(employee_ids)
+
+    c.execute(f"""
+        SELECT * FROM computers
+        WHERE {' OR '.join(clauses)}
+        ORDER BY pc_model, monitor_model, id
+    """, params)
+    results = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return results
+
 def get_computers_by_lab(lab_id):
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
