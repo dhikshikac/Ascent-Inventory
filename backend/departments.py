@@ -94,13 +94,13 @@ def delete_dept(name, on_delete_dept=None):
     conn = database.get_connection()
     c = conn.cursor()
 
-    c.execute("SELECT COUNT(*) FROM employees WHERE dept_id = ?", (dept_id,))
+    c.execute("SELECT COUNT(*) FROM departments WHERE parent_id = ?", (dept_id,))
 
     if c.fetchone()[0] > 0:
         conn.close()
         raise ValueError(f"Cannot delete '{name}' department. It still has existing sub-departments.")
     
-    c.execute("SELECT * FROM employees WHERE dept_id = ?", (dept_id,))
+    c.execute("SELECT COUNT(*) FROM employees WHERE dept_id = ?", (dept_id,))
     has_employees = c.fetchone()[0] > 0
 
     if has_employees:
@@ -186,6 +186,3 @@ def get_subdepts_by_id(dept_id):
     subdepts = [dict(row) for row in c.fetchall()]
     conn.close()
     return subdepts
-
-
-
