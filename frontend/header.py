@@ -40,6 +40,7 @@ class HeaderBar(QWidget):
             self._search.setPlaceholderText("Search employees, IDs...")
             self._search.textChanged.connect(self.search_changed)
             layout.addWidget(self._search)
+            self._search.hide()
 
     def set_search_text(self, text: str):
         if hasattr(self, "_search"):
@@ -48,3 +49,12 @@ class HeaderBar(QWidget):
     def clear_search(self):
         if hasattr(self, "_search"):
             self._search.clear()
+
+    def set_search_visible(self, visible: bool):
+        if not hasattr(self, "_search"):
+            return
+        if not visible:
+            self._search.blockSignals(True)
+            self._search.clear()
+            self._search.blockSignals(False)
+        self._search.setVisible(visible)
