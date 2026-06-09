@@ -50,6 +50,7 @@ def v_separator() -> QFrame:
 
 def empty_state(message: str) -> QWidget:
     widget = QWidget()
+    widget.setObjectName("EmptyState")
     layout = QVBoxLayout(widget)
     layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
     label = QLabel(message)

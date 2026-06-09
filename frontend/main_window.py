@@ -52,6 +52,8 @@ class MainWindow(QMainWindow):
         self._list_view = EmployeeListView()
         self._list_view.employee_selected.connect(self._show_detail)
         self._list_view.data_changed.connect(self._sidebar.refresh)
+        self._list_view.department_deleted.connect(self._on_department_deleted)
+        self._list_view.search_visibility_changed.connect(self._on_list_search_visibility_changed)
 
         self._detail_view = EmployeeDetailView()
         self._detail_view.back_clicked.connect(self._show_list)
@@ -75,19 +77,32 @@ class MainWindow(QMainWindow):
         self._list_view.set_department(dept_id, dept_name)
         self._stack.setCurrentIndex(_LIST_IDX)
         self._header.clear_search()
+        self._header.set_search_visible(self._list_view.has_searchable_rows())
 
     def _show_detail(self, employee_id: str):
+        self._header.set_search_visible(False)
         self._detail_view.load(employee_id)
         self._stack.setCurrentIndex(_DETAIL_IDX)
 
     def _show_list(self):
         self._list_view.refresh()
         self._stack.setCurrentIndex(_LIST_IDX)
+        self._header.set_search_visible(self._list_view.has_searchable_rows())
 
     def _on_detail_data_changed(self):
         # After an edit/delete in detail, refresh the list underneath
         self._list_view.refresh()
         self._sidebar.refresh()
+
+    def _on_department_deleted(self):
+        self._current_dept_id = None
+        self._current_dept_name = ""
+        self._sidebar.clear_selection()
+        self._header.set_search_visible(False)
+
+    def _on_list_search_visibility_changed(self, visible: bool):
+        if self._stack.currentIndex() == _LIST_IDX:
+            self._header.set_search_visible(visible)
 
     def _on_search(self, text: str):
         # Search only applies to the list view

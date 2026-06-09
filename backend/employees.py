@@ -1,5 +1,6 @@
 import sqlite3
 from backend import database
+from backend import departments
 
 employee_info = {
     "employee_id": None,
@@ -86,14 +87,19 @@ def get_all_employees():
     return all_employees
 
 def get_all_dept_employees(dept_id):
+    dept_ids = departments.get_descendant_dept_ids(dept_id)
+    if not dept_ids:
+        return []
+    placeholders = ",".join("?" for _ in dept_ids)
+
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("""
+    c.execute(f"""
         SELECT e.* FROM employees e
-        JOIN departments d ON e.dept_id = d.id
-        WHERE d.id = ? OR d.parent_id = ?
-    """, (dept_id, dept_id))
+        WHERE e.dept_id IN ({placeholders})
+        ORDER BY e.last_name, e.first_name, e.employee_id
+    """, dept_ids)
     all_dept_employees = [dict(row) for row in c.fetchall()]
     conn.close()
     return all_dept_employees
