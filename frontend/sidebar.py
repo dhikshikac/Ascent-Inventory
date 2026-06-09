@@ -10,14 +10,17 @@ import backend.departments as departments
 from frontend.theme import SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH
 from frontend.widgets import primary_button, section_label, h_separator
 
+_DEPT_NAME_ROLE = Qt.ItemDataRole.UserRole.value + 1
+
 class DeptTree(QTreeWidget):
     dept_selected = pyqtSignal(int, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setHeaderHidden(True)
-        self.setIndentation(16)
+        self.setIndentation(0)
         self.setAnimated(True) 
+        self.setRootIsDecorated(False)
         self.itemClicked.connect(self._on_click)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
@@ -25,24 +28,29 @@ class DeptTree(QTreeWidget):
         self.clear()
         all_depts = departments.get_all_depts()
 
-        by_id = {d["id"]: d for d in all_depts}
-
         roots = [d for d in all_depts if d["parent_id"] is None]
         children_map: dict[int, list] = {}
         for d in all_depts:
             if d["parent_id"] is not None:
                 children_map.setdefault(d["parent_id"], []).append(d)
         
-        def add_item(parent_widget, dept):
+        def add_item(parent_widget, dept, depth=0):
             item = QTreeWidgetItem(parent_widget)
-            item.setText(0, dept["name"])
+            if depth == 0:
+                prefix = ""
+            elif dept["id"] == selected_id:
+                prefix = "      "
+            else:
+                prefix = "      ⌞ "
+            item.setText(0, f"{prefix}{dept['name']}")
             item.setData(0, Qt.ItemDataRole.UserRole, dept["id"])
+            item.setData(0, _DEPT_NAME_ROLE, dept["name"])
             item.setExpanded(True)
 
             if dept["id"] == selected_id:
                 item.setSelected(True)
             for child in children_map.get(dept["id"], []):
-                add_item(item, child)
+                add_item(item, child, depth + 1)
             return item
         
         for root_dept in roots:
@@ -53,8 +61,9 @@ class DeptTree(QTreeWidget):
     
     def _on_click(self, item: QTreeWidgetItem):
         dept_id = item.data(0, Qt.ItemDataRole.UserRole)
-        dept_name = item.text(0)
+        dept_name = item.data(0, _DEPT_NAME_ROLE)
         self.dept_selected.emit(dept_id, dept_name)
+        self.refresh(dept_id)
 
 class AddDeptDialog(QDialog):
     def __init__(self, parent=None):
@@ -93,6 +102,10 @@ class AddDeptDialog(QDialog):
         ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
         ok_button.setObjectName("PrimaryBtn")
         ok_button.setText("Add")
+        ok_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_button = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        cancel_button.setObjectName("GhostBtn")
+        cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         layout.addWidget(buttons)
     
     def _accept(self):
@@ -116,9 +129,10 @@ class Sidebar(QWidget):
         self.setObjectName("Sidebar")
         self.setMinimumWidth(SIDEBAR_MIN_WIDTH)
         self.setMaximumWidth(SIDEBAR_MAX_WIDTH)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 16)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         title = QLabel("Departments")
@@ -128,14 +142,16 @@ class Sidebar(QWidget):
         layout.addWidget(h_separator())
 
         self._tree = DeptTree()
-        self._tree.dept_selected.connect(self.dept_selected)
+        self._tree.dept_selected.connect(self._on_dept_selected)
         layout.addWidget(self._tree, 1)
 
         layout.addWidget(h_separator())
 
         footer = QWidget()
+        footer.setObjectName("SidebarFooter")
+        footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         footer_layout = QHBoxLayout(footer)
-        footer_layout.setContentsMargins(16, 8, 16, 0)
+        footer_layout.setContentsMargins(16, 10, 16, 18)
         add_button = primary_button("+ Add Department")
         add_button.clicked.connect(self._add_dept)
         footer_layout.addWidget(add_button)
@@ -146,6 +162,14 @@ class Sidebar(QWidget):
     
     def refresh(self):
         self._tree.refresh(self._selected_id)
+
+    def clear_selection(self):
+        self._selected_id = None
+        self._tree.clearSelection()
+
+    def _on_dept_selected(self, dept_id: int, dept_name: str):
+        self._selected_id = dept_id
+        self.dept_selected.emit(dept_id, dept_name)
 
     def _add_dept(self):
         dlg = AddDeptDialog(self)

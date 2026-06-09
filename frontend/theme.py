@@ -3,7 +3,7 @@ import os
 
 #Color Palette
 BKG = "#F9FAFB"
-SIDEBAR_BKG = "#9CA3AF"
+SIDEBAR_BKG = "#E5E7EB"
 PANEL_BKG = "#F9FAFB"
 HEADER_BKG = "#111827"
 #HEADER_BKG = "#F9FAFB"

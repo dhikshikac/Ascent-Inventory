@@ -13,6 +13,7 @@ QWidget {
 }
 
 #SidebarTitle {
+    background-color: %SIDEBAR_BKG%;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 1.5px;
@@ -21,16 +22,27 @@ QWidget {
     padding: 24px 20px 8px 20px;
 }
 
+#SidebarFooter {
+    background-color: %SIDEBAR_BKG%;
+}
+#SidebarFooter QWidget {
+    background-color: %SIDEBAR_BKG%;
+}
+
 /* ── Dept tree ── */
 QTreeWidget {
-    background-color: transparent;
+    background-color: %SIDEBAR_BKG%;
     border: none;
     outline: none;
+}
+QTreeWidget::viewport {
+    background-color: %SIDEBAR_BKG%;
 }
 QTreeWidget::item {
     padding: 6px 8px;
     border-radius: 5px;
     color: %TEXT_PRIMARY%;
+    background-color: transparent;
 }
 QTreeWidget::item:hover {
     background-color: %ROW_HOVER%;
@@ -42,11 +54,13 @@ QTreeWidget::item:selected {
 }
 QTreeWidget::branch {
     background: transparent;
+    border-image: none;
+    image: none;
 }
 
 /* ── Header bar ── */
 #HeaderBar {
-    background-color: %HEADER_BKG%;
+    background-color: %SIDEBAR_BKG%;
     min-height: 48px;
     max-height: 48px;
 }
@@ -54,7 +68,7 @@ QTreeWidget::branch {
     font-size: 15px;
     font-weight: 700;
     letter-spacing: 0.5px;
-    color: %TEXT_ON_DARK%;
+    color: %TEXT_PRIMARY%;
     padding-left: 20px;
 }
 #HeaderSep {
@@ -64,16 +78,16 @@ QTreeWidget::branch {
 }
 #HeaderContext {
     font-size: 13px;
-    color: %TEXT_SECONDARY%;
+    color: %TEXT_PRIMARY%;
     letter-spacing: 0.3px;
 }
 
 /* ── Search box ── */
 #SearchBar {
-    background-color: %HEADER_BKG%;
+    background-color: %SIDEBAR_BKG%;
     border: 1px solid %BORDERS%;
     border-radius: 6px;
-    color: %TEXT_ON_DARK%;
+    color: %TEXT_PRIMARY%;
     padding: 4px 10px;
     font-size: 13px;
     min-width: 180px;
@@ -85,6 +99,17 @@ QTreeWidget::branch {
 /* ── Main content panel ── */
 #ContentPanel {
     background-color: %PANEL_BKG%;
+}
+
+#DepartmentHeader {
+    background-color: %PANEL_BKG%;
+    border-bottom: 1px solid %BORDERS%;
+}
+
+#EmployeeDetailHeader,
+#EmployeeNotes {
+    background-color: %PANEL_BKG%;
+    border: none;
 }
 
 /* ── Data table ── */
@@ -101,17 +126,11 @@ QTableWidget::item {
     padding: 4px 10px;
     border: none;
     border-bottom: 1px solid %BORDERS%;
-    background-color: %BKG%;
-}
-QTableWidget::item:hover {
-    background-color: #DBEAFE;
+    text-align: left;
 }
 QTableWidget::item:selected {
     background-color: %ROW_SELECTED%;
     color: %TEXT_ON_DARK%;
-}
-QTableWidget::item[hovered="true"] {
-    background-color: #DBEAFE;
 }
 QHeaderView::section {
     background-color: %BKG%;
@@ -123,6 +142,7 @@ QHeaderView::section {
     padding: 8px 10px;
     border: none;
     border-bottom: 2px solid %BORDERS%;
+    text-align: left;
 }
 
 /* ── Primary button ── */
@@ -153,8 +173,10 @@ QPushButton#GhostBtn {
     color: %TEXT_PRIMARY%;
     border: 1px solid %BORDERS%;
     border-radius: 6px;
-    padding: 7px 16px;
+    padding: 8px 18px;
     font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
 }
 QPushButton#GhostBtn:hover {
     background-color: %ROW_HOVER%;
@@ -186,8 +208,10 @@ QPushButton#DangerBtn {
     color: #DC2626;
     border: 1px solid #DC2626;
     border-radius: 6px;
-    padding: 7px 16px;
+    padding: 8px 18px;
     font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
 }
 QPushButton#DangerBtn:hover {
     background-color: #FEE2E2;
@@ -224,7 +248,8 @@ QPushButton#DangerBtn:hover {
     font-size: 13px;
     color: %TEXT_PRIMARY%;
 }
-#EmptyState {
+#EmptyState,
+#EmptyStateLabel {
     font-size: 14px;
     color: %TEXT_SECONDARY%;
 }

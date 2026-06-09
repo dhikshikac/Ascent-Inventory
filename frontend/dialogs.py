@@ -19,6 +19,10 @@ def _ok_cancel(parent_dialog: QDialog, ok_text="Save") -> QDialogButtonBox:
     ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
     ok_button.setObjectName("PrimaryBtn")
     ok_button.setText(ok_text)
+    ok_button.setCursor(Qt.CursorShape.PointingHandCursor)
+    cancel_button = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+    cancel_button.setObjectName("GhostBtn")
+    cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
     buttons.rejected.connect(parent_dialog.reject)
     return buttons
 
@@ -36,7 +40,7 @@ class AddEmployeeDialog(QDialog):
         layout.setSpacing(16)
 
         title = QLabel("Add New Employee")
-        title.setObjectName("DeptName")
+        title.setObjectName("DetailName")
         layout.addWidget(title)
 
         form = QFormLayout()
@@ -173,7 +177,7 @@ class AddComputerDialog(QDialog):
 
     def __init__(self, employee_id: str | None = None, dept_id: int | None = None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Add Device")
+        self.setWindowTitle("Add Computer")
         self.setMinimumWidth(520)
         self.setModal(True)
         self._employee_id = employee_id
@@ -183,7 +187,7 @@ class AddComputerDialog(QDialog):
         layout.setContentsMargins(28, 24, 28, 20)
         layout.setSpacing(16)
 
-        title = QLabel("New Device / Computer")
+        title = QLabel("New Computer")
         title.setObjectName("DetailName")
         layout.addWidget(title)
 
@@ -212,9 +216,17 @@ class AddComputerDialog(QDialog):
         self._os_edit.setPlaceholderText("e.g. Windows 11 Pro")
         form.addRow("OS Version", self._os_edit)
 
+        self._webcam_edit = QLineEdit()
+        self._webcam_edit.setPlaceholderText("e.g. Logitech C920")
+        form.addRow("Webcam", self._webcam_edit)
+
+        self._phone_edit = QLineEdit()
+        self._phone_edit.setPlaceholderText("e.g. Cisco 7841")
+        form.addRow("Desk Phone", self._phone_edit)
+
         layout.addLayout(form)
 
-        buttons = _ok_cancel(self, "Add Device")
+        buttons = _ok_cancel(self, "Add Computer")
         buttons.accepted.connect(self._accept)
         layout.addWidget(buttons)
     
@@ -228,6 +240,8 @@ class AddComputerDialog(QDialog):
             ram=self._ram_edit.text().strip(),
             storage=self._storage_edit.text().strip(),
             os_version=self._os_edit.text().strip(),
+            webcam_specs=self._webcam_edit.text().strip(),
+            desk_phone=self._phone_edit.text().strip(),
         )
         self.accept()
 
@@ -280,7 +294,7 @@ class EditComputerDialog(QDialog):
         form.addRow("Desk Phone",    self._phone)
  
         self._notes = QTextEdit()
-        self._notes.setPlainText(comp.get("notes") or "")
+        self._notes.setPlainText(computer.get("notes") or "")
         self._notes.setFixedHeight(60)
         form.addRow("Notes", self._notes)
  

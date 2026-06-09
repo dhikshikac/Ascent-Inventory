@@ -86,17 +86,24 @@ def get_all_employees():
     return all_employees
 
 def get_all_dept_employees(dept_id):
+    dept_ids = _dept_tree_ids(dept_id)
+    placeholders = ",".join("?" for _ in dept_ids)
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("""
-        SELECT e.* FROM employees e
-        JOIN departments d ON e.dept_id = d.id
-        WHERE d.id = ? OR d.parent_id = ?
-    """, (dept_id, dept_id))
+    c.execute(f"""
+        SELECT * FROM employees
+        WHERE dept_id IN ({placeholders})
+        ORDER BY last_name, first_name, employee_id
+    """, dept_ids)
     all_dept_employees = [dict(row) for row in c.fetchall()]
     conn.close()
     return all_dept_employees
+
+def _dept_tree_ids(dept_id):
+    # Local import avoids a module-level cycle with backend.departments.
+    import backend.departments as departments
+    return departments.get_descendant_ids(dept_id)
 
 def search_employees(query):
     conn = database.get_connection()
