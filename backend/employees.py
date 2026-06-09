@@ -54,7 +54,6 @@ def delete_employee(employee_id):
         return False
     conn = database.get_connection()
     c = conn.cursor()
-    # Also delete linked computers
     c.execute("DELETE FROM computers WHERE employee_id = ?", (employee_id,))
     c.execute("DELETE FROM employees WHERE employee_id = ?", (employee_id,))
     conn.commit()

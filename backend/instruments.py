@@ -9,7 +9,6 @@ instrument_template = {
 }
 
 def add_instrument(lab_id, model_name, serial_number=None, notes=None):
-    """Add an instrument to a lab."""
     new_inst = instrument_template.copy()
     new_inst["lab_id"] = lab_id
     new_inst["model_name"] = model_name
