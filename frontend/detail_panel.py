@@ -21,21 +21,11 @@ class ComputerCard(QFrame):
     def __init__(self, computer: dict, parent=None):
         super().__init__(parent)
         self._computer_id = computer.get("id")
-        self.setObjectName("ComputerCard")
         self.setStyleSheet("""
-            QFrame#ComputerCard {
+            QFrame {
                 background-color: #FFFFFF;
                 border: 1px solid #E5E7EB;
                 border-radius: 8px;
-            }
-            QLabel#ComputerBadge {
-                background-color: #F3F4F6;
-                border: none;
-                border-radius: 5px;
-                color: #4B5563;
-                font-size: 11px;
-                font-weight: 600;
-                padding: 4px 8px;
             }
         """)
         layout = QVBoxLayout(self)
@@ -44,7 +34,9 @@ class ComputerCard(QFrame):
 
         hdr = QHBoxLayout()
         badge = QLabel(computer.get("computer_type", "computer").replace("_", " ").upper())
-        badge.setObjectName("ComputerBadge")
+        badge.setStyleSheet("""
+            background-color: #F3F4F6;
+        """)
         hdr.addWidget(badge)
         hdr.addStretch()
         edit_btn = ghost_button("Edit")
@@ -142,7 +134,7 @@ class EmployeeDetailView(QWidget):
         edit_btn.clicked.connect(self._edit)
         btn_row.addWidget(edit_btn)
  
-        add_dev_btn = primary_button("+ Add Computer")
+        add_dev_btn = primary_button("+ Add Device")
         add_dev_btn.clicked.connect(self._add_device)
         btn_row.addWidget(add_dev_btn)
  
@@ -171,7 +163,7 @@ class EmployeeDetailView(QWidget):
         dev_hdr = QWidget()
         dhl = QHBoxLayout(dev_hdr)
         dhl.setContentsMargins(24, 16, 24, 8)
-        dhl.addWidget(section_label("Computers / Devices"))
+        dhl.addWidget(section_label("Devices"))
         dhl.addStretch()
         outer.addWidget(dev_hdr)
  
@@ -193,7 +185,7 @@ class EmployeeDetailView(QWidget):
                 card.delete_requested.connect(self._delete_device)
                 sl.addWidget(card)
         else:
-            no_dev = QLabel("No computers assigned yet.")
+            no_dev = QLabel("No devices assigned yet.")
             no_dev.setObjectName("EmptyState")
             no_dev.setAlignment(Qt.AlignmentFlag.AlignCenter)
             sl.addWidget(no_dev)
@@ -228,13 +220,11 @@ class EmployeeDetailView(QWidget):
     def _add_device(self):
         dlg = AddComputerDialog(employee_id=self._employee_id, parent=self)
         if dlg.exec() == dlg.DialogCode.Accepted:
-            self.data_changed.emit()
             self._rebuild()
  
     def _edit_device(self, comp_id: int):
         dlg = EditComputerDialog(comp_id, self)
         if dlg.exec() == dlg.DialogCode.Accepted:
-            self.data_changed.emit()
             self._rebuild()
  
     def _delete_device(self, comp_id: int):
@@ -244,5 +234,4 @@ class EmployeeDetailView(QWidget):
         )
         if reply == QMessageBox.StandardButton.Yes:
             computers.delete_computer(comp_id)
-            self.data_changed.emit()
             self._rebuild()

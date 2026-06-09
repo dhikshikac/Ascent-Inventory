@@ -42,8 +42,6 @@ QTreeWidget::item:selected {
 }
 QTreeWidget::branch {
     background: transparent;
-    image: none;
-    border-image: none;
 }
 
 /* ── Header bar ── */
@@ -103,10 +101,17 @@ QTableWidget::item {
     padding: 4px 10px;
     border: none;
     border-bottom: 1px solid %BORDERS%;
+    background-color: %BKG%;
+}
+QTableWidget::item:hover {
+    background-color: #DBEAFE;
 }
 QTableWidget::item:selected {
     background-color: %ROW_SELECTED%;
     color: %TEXT_ON_DARK%;
+}
+QTableWidget::item[hovered="true"] {
+    background-color: #DBEAFE;
 }
 QHeaderView::section {
     background-color: %BKG%;
@@ -148,10 +153,8 @@ QPushButton#GhostBtn {
     color: %TEXT_PRIMARY%;
     border: 1px solid %BORDERS%;
     border-radius: 6px;
-    padding: 8px 18px;
+    padding: 7px 16px;
     font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.3px;
 }
 QPushButton#GhostBtn:hover {
     background-color: %ROW_HOVER%;
@@ -183,10 +186,8 @@ QPushButton#DangerBtn {
     color: #DC2626;
     border: 1px solid #DC2626;
     border-radius: 6px;
-    padding: 8px 18px;
+    padding: 7px 16px;
     font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.3px;
 }
 QPushButton#DangerBtn:hover {
     background-color: #FEE2E2;
@@ -224,13 +225,8 @@ QPushButton#DangerBtn:hover {
     color: %TEXT_PRIMARY%;
 }
 #EmptyState {
-    background-color: %PANEL_BKG%;
     font-size: 14px;
     color: %TEXT_SECONDARY%;
-}
-#EmptyStateLabel {
-    font-size: 14px;
-    color: %TEXT_PRIMARY%;
 }
 
 /* ── Inputs ── */

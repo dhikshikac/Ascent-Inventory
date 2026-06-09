@@ -25,23 +25,6 @@ def get_instruments_by_lab(lab_id):
     conn.close()
     return results
 
-def get_instruments_for_depts(dept_ids):
-    if not dept_ids:
-        return []
-
-    placeholders = ",".join("?" for _ in dept_ids)
-    conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute(f"""
-        SELECT * FROM instruments
-        WHERE lab_id IN ({placeholders})
-        ORDER BY model_name, serial_number, id
-    """, dept_ids)
-    results = [dict(row) for row in c.fetchall()]
-    conn.close()
-    return results
-
 def get_instrument(instrument_id):
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
