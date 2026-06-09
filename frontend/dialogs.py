@@ -19,9 +19,6 @@ def _ok_cancel(parent_dialog: QDialog, ok_text="Save") -> QDialogButtonBox:
     ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
     ok_button.setObjectName("PrimaryBtn")
     ok_button.setText(ok_text)
-    cancel_button = buttons.button(QDialogButtonBox.StandardButton.Cancel)
-    cancel_button.setObjectName("GhostBtn")
-    cancel_button.setText("Cancel")
     buttons.rejected.connect(parent_dialog.reject)
     return buttons
 
@@ -176,7 +173,7 @@ class AddComputerDialog(QDialog):
 
     def __init__(self, employee_id: str | None = None, dept_id: int | None = None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Add Computer")
+        self.setWindowTitle("Add Device")
         self.setMinimumWidth(520)
         self.setModal(True)
         self._employee_id = employee_id
@@ -186,7 +183,7 @@ class AddComputerDialog(QDialog):
         layout.setContentsMargins(28, 24, 28, 20)
         layout.setSpacing(16)
 
-        title = QLabel("New Computer")
+        title = QLabel("New Device / Computer")
         title.setObjectName("DetailName")
         layout.addWidget(title)
 
@@ -217,15 +214,11 @@ class AddComputerDialog(QDialog):
 
         layout.addLayout(form)
 
-        buttons = _ok_cancel(self, "Add Computer")
+        buttons = _ok_cancel(self, "Add Device")
         buttons.accepted.connect(self._accept)
         layout.addWidget(buttons)
     
     def _accept(self):
-        if not self._pc_edit.text().strip():
-            QMessageBox.warning(self, "Required", "PC model cannot be empty.")
-            return
-
         computers.add_computer(
             computer_type="employee" if self._employee_id else "shared",
             employee_id=self._employee_id,
@@ -287,7 +280,7 @@ class EditComputerDialog(QDialog):
         form.addRow("Desk Phone",    self._phone)
  
         self._notes = QTextEdit()
-        self._notes.setPlainText(computer.get("notes") or "")
+        self._notes.setPlainText(comp.get("notes") or "")
         self._notes.setFixedHeight(60)
         form.addRow("Notes", self._notes)
  
