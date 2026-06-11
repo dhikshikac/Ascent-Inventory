@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTableWidgetItem, QAbstractItemView,
-    QHeaderView, QMessageBox,
+    QHeaderView, QMessageBox, QScrollArea,
 ) 
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -21,6 +21,14 @@ _COLUMNS = [
     ("Notes", "_notes"),
 ]
 
+# Columns used in the All Employees view
+_ALL_EMP_COLUMNS = [
+    ("Name", "_name"),
+    ("Employee ID", "_item_id"),
+    ("Department", "_dept_name"),
+]
+
+
 class EmployeeListView(QWidget):
     employee_selected = pyqtSignal(str)
     computer_selected = pyqtSignal(int)
@@ -37,11 +45,16 @@ class EmployeeListView(QWidget):
         self._dept_name: str = ""
         self._filter: str = ""
         self._all_rows: list[dict] = []
- 
+        self._is_all_employees: bool = False
+
+        # Sort state for All Employees view: True = A→Z, False = Z→A
+        self._all_emp_sort_asc: bool = True
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        # ── Sub-header ────────────────────────────────────────────────
         sub_header = QWidget(self)
         sub_header.setObjectName("DepartmentHeader")
         sub_header_layout = QVBoxLayout(sub_header)
@@ -50,6 +63,8 @@ class EmployeeListView(QWidget):
 
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
+        
+        
 
         self._dept_label = QLabel("Select a department")
         self._dept_label.setObjectName("DetailName")
@@ -89,6 +104,14 @@ class EmployeeListView(QWidget):
 
         layout.addWidget(sub_header)
 
+        # ── Main table (department view) ──────────────────────────────
+        # Wrap in a scroll area for horizontal scrolling (table only)
+        self._table_scroll = QScrollArea()
+        self._table_scroll.setWidgetResizable(True)
+        self._table_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._table_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._table_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+
         self._table = HoverTableWidget()
         self._table.setColumnCount(len(_COLUMNS))
         self._table.setHorizontalHeaderLabels([c[0] for c in _COLUMNS])
@@ -102,7 +125,9 @@ class EmployeeListView(QWidget):
         self._table.setAlternatingRowColors(False)
         self._table.verticalHeader().setVisible(False)
         self._table.setShowGrid(False)
-        self._table.horizontalHeader().setStretchLastSection(True)
+        # Do NOT stretch last section — let columns keep their widths so
+        # horizontal scrolling kicks in when content overflows.
+        self._table.horizontalHeader().setStretchLastSection(False)
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self._table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._table.itemSelectionChanged.connect(self._on_selection)
@@ -111,23 +136,70 @@ class EmployeeListView(QWidget):
         self._table.setColumnWidth(2, 190)
         self._table.setColumnWidth(3, 170)
         self._table.setColumnWidth(4, 260)
-        layout.addWidget(self._table, 1)
- 
+        self._table.setColumnWidth(5, 200)
+
+        self._table_scroll.setWidget(self._table)
+        layout.addWidget(self._table_scroll, 1)
+
+        # ── All Employees table ───────────────────────────────────────
+        self._all_emp_table = HoverTableWidget()
+        self._all_emp_table.setColumnCount(len(_ALL_EMP_COLUMNS))
+        self._all_emp_table.setHorizontalHeaderLabels([c[0] for c in _ALL_EMP_COLUMNS])
+        self._all_emp_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self._all_emp_table.horizontalHeader().setStretchLastSection(True)
+        self._all_emp_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._all_emp_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._all_emp_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._all_emp_table.setAlternatingRowColors(False)
+        self._all_emp_table.verticalHeader().setVisible(False)
+        self._all_emp_table.setShowGrid(False)
+        self._all_emp_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._all_emp_table.setColumnWidth(0, 220)
+        self._all_emp_table.setColumnWidth(1, 160)
+        # Clicking the Name header toggles sort direction
+        self._all_emp_table.horizontalHeader().sectionClicked.connect(
+            self._on_all_emp_header_clicked
+        )
+        self._all_emp_table.itemSelectionChanged.connect(self._on_all_emp_selection)
+        self._all_emp_table.hide()
+        layout.addWidget(self._all_emp_table, 1)
+
+        # ── Empty state ───────────────────────────────────────────────
         self._empty = empty_state("Select a department to view inventory.")
         self._empty_label = self._empty.findChild(QLabel)
         self._empty.hide()
         layout.addWidget(self._empty, 1)
 
+    # ── Public API ────────────────────────────────────────────────────
+
     def set_department(self, dept_id: int, dept_name: str):
+        self._is_all_employees = False
         self._dept_id = dept_id
         self._dept_name = dept_name
         self._dept_label.setText(dept_name)
         for btn in (self._add_emp_btn, self._add_comp_btn, self._add_inst_btn, self._delete_dept_btn):
             btn.setEnabled(True)
         self._delete_dept_btn.show()
+        self._all_emp_table.hide()
+        self._table_scroll.show()
         self.refresh()
 
+    def set_all_employees(self):
+        """Switch to the All Employees virtual view."""
+        self._is_all_employees = True
+        self._dept_id = None
+        self._dept_name = ""
+        self._dept_label.setText("All Employees")
+        for btn in (self._add_emp_btn, self._add_comp_btn, self._add_inst_btn, self._delete_dept_btn):
+            btn.setEnabled(False)
+        self._delete_dept_btn.hide()
+        self._table_scroll.hide()
+        self._empty.hide()
+        self._all_emp_sort_asc = True  # reset sort on each visit
+        self._refresh_all_employees()
+
     def clear_department(self):
+        self._is_all_employees = False
         self._dept_id = None
         self._dept_name = ""
         self._all_rows = []
@@ -136,20 +208,29 @@ class EmployeeListView(QWidget):
         for btn in (self._add_emp_btn, self._add_comp_btn, self._add_inst_btn, self._delete_dept_btn):
             btn.setEnabled(False)
         self._delete_dept_btn.hide()
+        self._all_emp_table.hide()
+        self._table_scroll.show()
         self._render()
 
     def has_inventory_rows(self) -> bool:
         return bool(self._all_rows)
- 
+
     def apply_filter(self, text: str):
         self._filter = text.lower()
-        self._render()
- 
+        if self._is_all_employees:
+            self._refresh_all_employees()
+        else:
+            self._render()
+
     def refresh(self):
+        if self._is_all_employees:
+            self._refresh_all_employees()
+            return
         if self._dept_id is None:
             self._all_rows = []
             self._render()
             return
+
         dept_ids = departments.get_descendant_ids(self._dept_id)
         dept_names = {d["id"]: d["name"] for d in departments.get_all_depts()}
         rows: list[dict] = []
@@ -200,21 +281,133 @@ class EmployeeListView(QWidget):
 
         self._all_rows = rows
         self._render()
+
+    # ── All Employees helpers ─────────────────────────────────────────
+
+    def _refresh_all_employees(self):
+        """Populate the All Employees table."""
+        self._table_scroll.hide()
+        self._empty.hide()
+        self._all_emp_table.show()
+
+            
+            # Update sort arrow in header # 
+        
+        header = self._all_emp_table.horizontalHeader()
+        sort_label = "Name ▲" if self._all_emp_sort_asc else "Name ▼"
+        self._all_emp_table.setHorizontalHeaderItem(
+            0, QTableWidgetItem(sort_label)
+        )
+
+        # ADD THIS LOOP HERE TO ALIGN ALL HEADERS TO THE LEFT:
+        for i in range(len(_ALL_EMP_COLUMNS)):
+            header_item = self._all_emp_table.horizontalHeaderItem(i)
+            if header_item:
+                header_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        # ADD THIS LOOP HERE TO ALIGN ALL HEADERS TO THE LEFT:
+        for i in range(len(_ALL_EMP_COLUMNS)):
+            header_item = self._all_emp_table.horizontalHeaderItem(i)
+            if header_item:
+                header_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        dept_names = {d["id"]: d["name"] for d in departments.get_all_depts()}
+       
+        all_emps = sorted(
+            employees.get_all_employees(),
+            key=lambda e: (
+                 (e.get("last_name") or "").lower(),
+                 (e.get("first_name") or "").lower(),
+             ),
   
+                 reverse=not self._all_emp_sort_asc
+        )
+
+        # Apply filter
+        f = self._filter
+        if f:
+            all_emps = [
+                e for e in all_emps
+                if f in e.get("last_name", "").lower()
+                or f in e.get("first_name", "").lower()
+                or f in e.get("employee_id", "").lower()
+            ]
+
+        self.search_available_changed.emit(True)
+
+        # Update sort arrow in header
+        header = self._all_emp_table.horizontalHeader()
+        sort_label = "Name ▲" if self._all_emp_sort_asc else "Name ▼"
+        self._all_emp_table.setHorizontalHeaderItem(
+            0, QTableWidgetItem(sort_label)
+        )
+
+        self._all_emp_table.setRowCount(0)
+        if not all_emps:
+            self._all_emp_table.hide()
+            self._empty.show()
+            if self._empty_label:
+                self._empty_label.setText("No employees found.")
+            self._count_label.setText("")
+            return
+
+        count = len(all_emps)
+        self._count_label.setText(
+            f"{count} employee" if count == 1 else f"{count} employees"
+        )
+
+        self._all_emp_table.setRowCount(count)
+        for r, emp in enumerate(all_emps):
+            last = emp.get("last_name", "")
+            first = emp.get("first_name", "")
+            display_name = f"{last}, {first}".strip(", ")
+            emp_id = emp.get("employee_id", "")
+            dept_name = dept_names.get(emp.get("dept_id"), "Unassigned")
+
+            for c, val in enumerate([display_name, emp_id, dept_name]):
+                item = QTableWidgetItem(val)
+                item.setData(Qt.ItemDataRole.UserRole, {
+                    "kind": "Employee",
+                    "id": emp_id,
+                })
+                item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self._all_emp_table.setItem(r, c, item)
+            self._all_emp_table.setRowHeight(r, 40)
+
+        self._all_emp_table.repaint_all_rows()
+
+    def _on_all_emp_header_clicked(self, logical_index: int):
+        """Toggle sort direction when the Name column header is clicked."""
+        if logical_index == 0:
+            self._all_emp_sort_asc = not self._all_emp_sort_asc
+            self._refresh_all_employees()
+
+    def _on_all_emp_selection(self):
+        sel = self._all_emp_table.selectedItems()
+        if sel:
+            data = sel[0].data(Qt.ItemDataRole.UserRole) or {}
+            emp_id = data.get("id")
+            if emp_id:
+                self.employee_selected.emit(emp_id)
+
+    # ── Dept table render ─────────────────────────────────────────────
+
     def _render(self):
         f = self._filter
         rows = [
             row for row in self._all_rows
-            if not f
-            or f in self._row_search_text(row)
+            if not f or f in self._row_search_text(row)
         ]
- 
-        self._table.setRowCount(0)
-        self.search_available_changed.emit(bool(self._all_rows))
+
+        self._table.setRowCount(0) 
+        self.search_available_changed.emit(bool(self._all_rows)) 
         if not rows:
-            self._table.hide(); self._empty.show()
-            if self._empty_label:
-                if self._dept_id is None:
+            self._table.hide() 
+            self._table_scroll.hide()  
+            self._empty.show() 
+            if self._empty_label: 
+                if self._dept_id is None: 
                     self._empty_label.setText("Select a department to view inventory.")
                 elif self._all_rows:
                     self._empty_label.setText("No matching inventory found.")
@@ -222,11 +415,13 @@ class EmployeeListView(QWidget):
                     self._empty_label.setText("No employees, instruments, or computers in this department.")
             self._count_label.setText("0 matches" if self._all_rows and f else "")
             return
- 
-        self._empty.hide(); self._table.show()
+
+        self._empty.hide()
+        self._table_scroll.show()
+        self._table.show()
         self._count_label.setText(self._count_text(rows))
         self._table.setRowCount(len(rows))
- 
+
         for r, row in enumerate(rows):
             vals = [row.get(key, "") for _, key in _COLUMNS]
             for c, val in enumerate(vals):
@@ -240,7 +435,7 @@ class EmployeeListView(QWidget):
                 self._table.setItem(r, c, item)
             self._table.setRowHeight(r, 40)
         self._table.repaint_all_rows()
- 
+
     def _on_selection(self):
         sel = self._table.selectedItems()
         if sel:
@@ -253,7 +448,9 @@ class EmployeeListView(QWidget):
                 self.computer_selected.emit(int(record_id))
             elif kind == "Instrument" and record_id is not None:
                 self.instrument_selected.emit(int(record_id))
- 
+
+    # ── Button actions ────────────────────────────────────────────────
+
     def _add_employee(self):
         if self._dept_id is None:
             return
@@ -261,14 +458,14 @@ class EmployeeListView(QWidget):
         if dlg.exec() == AddEmployeeDialog.DialogCode.Accepted:
             self.data_changed.emit()
             self.refresh()
- 
+
     def _add_computer(self):
         if self._dept_id is None:
             return
         dlg = AddComputerDialog(dept_id=self._dept_id, parent=self)
         if dlg.exec() == AddComputerDialog.DialogCode.Accepted:
             self.refresh()
- 
+
     def _add_instrument(self):
         if self._dept_id is None:
             return
@@ -298,6 +495,8 @@ class EmployeeListView(QWidget):
             return
         self.department_deleted.emit()
 
+    # ── Utility ───────────────────────────────────────────────────────
+
     def _row_search_text(self, row: dict) -> str:
         return " ".join(str(row.get(key, "")) for _, key in _COLUMNS).lower()
 
@@ -306,12 +505,24 @@ class EmployeeListView(QWidget):
         for row in rows:
             kind = row.get("_kind", "Item")
             counts[kind] = counts.get(kind, 0) + 1
+
+        # Webcam count for the current department
+        if self._dept_id is not None:
+            dept_ids = departments.get_descendant_ids(self._dept_id)
+            webcam_count = computers.count_webcams_in_depts(dept_ids)
+        else:
+            webcam_count = 0
+
         parts = []
         for kind in ("Employee", "Instrument", "Computer"):
             count = counts.get(kind, 0)
             if count:
                 label = kind.lower() if count == 1 else f"{kind.lower()}s"
                 parts.append(f"{count} {label}")
+        if webcam_count:
+            label = "webcam" if webcam_count == 1 else "webcams"
+            parts.append(f"{webcam_count} {label}")
+
         return " · ".join(parts) if parts else f"{len(rows)} items"
 
     def _device_preview(self, devices: list[dict]) -> str:

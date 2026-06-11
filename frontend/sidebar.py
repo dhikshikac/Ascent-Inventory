@@ -1,16 +1,23 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QHBoxLayout, 
+    QWidget, QVBoxLayout, QLabel, QHBoxLayout,
     QTreeWidget, QTreeWidgetItem, QDialog, QDialogButtonBox,
-    QFormLayout, QLineEdit, QComboBox, QMessageBox, QFrame
+    QFormLayout, QLineEdit, QComboBox, QMessageBox, QFrame,
+    QPushButton
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QColor
+from PyQt6.QtGui import QFont
 
 import backend.departments as departments
 from frontend.theme import SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH
 from frontend.widgets import primary_button, section_label, h_separator
 
 _DEPT_NAME_ROLE = Qt.ItemDataRole.UserRole.value + 1
+_DEPT_ID_ROLE   = Qt.ItemDataRole.UserRole
+
+# Sentinel dept_id for the "All Employees" virtual tab
+ALL_EMPLOYEES_ID = -1
+
+
 
 class DeptTree(QTreeWidget):
     dept_selected = pyqtSignal(int, str)
@@ -18,13 +25,21 @@ class DeptTree(QTreeWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setHeaderHidden(True)
-        self.setIndentation(0)
-        self.setAnimated(True) 
-        self.setRootIsDecorated(False)
+        self.setIndentation(16)
+        self.setAnimated(True)
+        self.setRootIsDecorated(False) # Kept False to hide native OS arrows
         self.itemClicked.connect(self._on_click)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+       
+        # Track expanded states across full database reloads
+        self._expanded_ids: set[int] = set()
 
     def refresh(self, selected_id=None):
+        """
+        Only called on initial startup or when a brand-new department 
+        is added via the AddDeptDialog.
+        """
+        self.blockSignals(True)
         self.clear()
         all_depts = departments.get_all_depts()
 
@@ -33,37 +48,74 @@ class DeptTree(QTreeWidget):
         for d in all_depts:
             if d["parent_id"] is not None:
                 children_map.setdefault(d["parent_id"], []).append(d)
-        
+
         def add_item(parent_widget, dept, depth=0):
             item = QTreeWidgetItem(parent_widget)
-            if depth == 0:
-                prefix = ""
-            elif dept["id"] == selected_id:
-                prefix = "      "
-            else:
-                prefix = "      ⌞ "
-            item.setText(0, f"{prefix}{dept['name']}")
-            item.setData(0, Qt.ItemDataRole.UserRole, dept["id"])
-            item.setData(0, _DEPT_NAME_ROLE, dept["name"])
-            item.setExpanded(True)
+            has_children = bool(children_map.get(dept["id"]))
+            is_expanded = dept["id"] in self._expanded_ids
 
+            name = dept["name"]
+            if has_children:
+                chevron = "▼" if is_expanded else "▶"
+                item.setText(0, f"{name}  {chevron}")
+            else:
+                item.setText(0, f"  {name}" if depth > 0 else name)
+
+            item.setData(0, _DEPT_ID_ROLE, dept["id"])
+            item.setData(0, _DEPT_NAME_ROLE, dept["name"])
+           
             if dept["id"] == selected_id:
                 item.setSelected(True)
-            for child in children_map.get(dept["id"], []):
-                add_item(item, child, depth + 1)
-            return item
-        
-        for root_dept in roots:
-            item = add_item(self, root_dept)
-            item.setExpanded(True)
 
-        self.expandAll()
-    
+            # Build ALL items into the tree structure immediately
+            if has_children:
+                for child in children_map.get(dept["id"], []):
+                    add_item(item, child, depth + 1)
+                # Apply initial expansion state smoothly
+                item.setExpanded(is_expanded)
+
+            return item
+
+        for root_dept in roots:
+            add_item(self, root_dept)
+
+        self.blockSignals(False)
+
     def _on_click(self, item: QTreeWidgetItem):
-        dept_id = item.data(0, Qt.ItemDataRole.UserRole)
+        dept_id   = item.data(0, _DEPT_ID_ROLE)
         dept_name = item.data(0, _DEPT_NAME_ROLE)
-        self.dept_selected.emit(dept_id, dept_name)
-        self.refresh(dept_id)
+
+        # Check if this dept has children natively without DB calls
+        has_children = item.childCount() > 0
+
+        if has_children:
+            self.blockSignals(True)
+            
+            # Toggle native state and tracking set
+            if item.isExpanded():
+                item.setExpanded(False)
+                self._expanded_ids.discard(dept_id)
+                item.setText(0, f"{dept_name}  ▶")
+                
+                # Clear selection when collapsing per your spec
+                self.clearSelection() 
+            else:
+                item.setExpanded(True)
+                self._expanded_ids.add(dept_id)
+                item.setText(0, f"{dept_name}  ▼")
+                
+                # Keep parent highlighted when expanding
+                self.clearSelection()
+                item.setSelected(True)
+                
+            self.blockSignals(False)
+        else:
+            # Leaf dept — load inventory and highlight natively
+            self.clearSelection()
+            item.setSelected(True)
+            self.dept_selected.emit(dept_id, dept_name)
+
+
 
 class AddDeptDialog(QDialog):
     def __init__(self, parent=None):
@@ -96,7 +148,10 @@ class AddDeptDialog(QDialog):
 
         layout.addLayout(form)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
@@ -107,13 +162,12 @@ class AddDeptDialog(QDialog):
         cancel_button.setObjectName("GhostBtn")
         cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         layout.addWidget(buttons)
-    
+
     def _accept(self):
         name = self._name_edit.text().strip()
         if not name:
             QMessageBox.warning(self, "Required", "Department name cannot be empty.")
             return
-        
         parent_id = self._parent_combo.currentData()
         result = departments.add_dept(name, parent_id)
         if result is None:
@@ -121,8 +175,10 @@ class AddDeptDialog(QDialog):
             return
         self.accept()
 
+
 class Sidebar(QWidget):
-    dept_selected = pyqtSignal(int, str)
+    dept_selected          = pyqtSignal(int, str)
+    all_employees_selected = pyqtSignal()  # fired when All Employees tab is clicked
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -141,12 +197,27 @@ class Sidebar(QWidget):
 
         layout.addWidget(h_separator())
 
+        # ── All Employees tab ──────────────────────────────────────────
+        self._all_emp_btn = QPushButton("All Employees")
+        self._all_emp_btn.setObjectName("AllEmployeesBtn")
+        self._all_emp_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._all_emp_btn.setFlat(True)
+        self._all_emp_btn.setCheckable(True)  # Fixes highlighting & toggle state
+        
+        # Forces text completely to the left side edge with padding
+        self._all_emp_btn.setStyleSheet("text-align: left; padding-left: 16px;")
+        
+        self._all_emp_btn.clicked.connect(self._on_all_employees)
+        layout.addWidget(self._all_emp_btn)
+
+        # ── Department tree ────────────────────────────────────────────
         self._tree = DeptTree()
         self._tree.dept_selected.connect(self._on_dept_selected)
         layout.addWidget(self._tree, 1)
 
         layout.addWidget(h_separator())
 
+        # ── Footer: Add Department ─────────────────────────────────────
         footer = QWidget()
         footer.setObjectName("SidebarFooter")
         footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -159,17 +230,24 @@ class Sidebar(QWidget):
 
         self._selected_id: int | None = None
 
-    
     def refresh(self):
         self._tree.refresh(self._selected_id)
 
     def clear_selection(self):
         self._selected_id = None
         self._tree.clearSelection()
+        self._all_emp_btn.setChecked(False)
 
     def _on_dept_selected(self, dept_id: int, dept_name: str):
         self._selected_id = dept_id
+        self._all_emp_btn.setChecked(False)
         self.dept_selected.emit(dept_id, dept_name)
+
+    def _on_all_employees(self):
+        self._selected_id = None
+        self._tree.clearSelection()
+        self._all_emp_btn.setChecked(True)
+        self.all_employees_selected.emit()
 
     def _add_dept(self):
         dlg = AddDeptDialog(self)

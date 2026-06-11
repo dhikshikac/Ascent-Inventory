@@ -92,20 +92,30 @@ _DEFAULT_COLOR = QColor("#FFFFFF")
 _SELECTED_COLOR = QColor("#7E9DDE")
 
 class HoverRowDelegate(QStyledItemDelegate):
-    """Paints the hovered table row across every cell."""
+    """Paints the hovered or selected table row across every cell."""
 
     def paint(self, painter, option, index):
         table = self.parent()
-        if (
-            isinstance(table, HoverTableWidget)
-            and index.row() == table.hovered_row()
-            and not (option.state & QStyle.StateFlag.State_Selected)
-        ):
+        if isinstance(table, HoverTableWidget):
             painter.save()
-            painter.fillRect(option.rect, _HOVER_COLOR)
+            
+            # 1. Check Selection State
+            if option.state & QStyle.StateFlag.State_Selected:
+                painter.fillRect(option.rect, _SELECTED_COLOR)
+                
+            # 2. Check Hover State (only if not selected)
+            elif index.row() == table.hovered_row():
+                painter.fillRect(option.rect, _HOVER_COLOR)
+                
+            # 3. Default Background
+            else:
+                painter.fillRect(option.rect, _DEFAULT_COLOR)
+                
             painter.restore()
+            
+        # Draw the cell text/content on top of our custom painted background
         super().paint(painter, option, index)
-
+        
 class HoverTableWidget(QTableWidget):
     """QTableWidget that highlights the entire hovered row."""
 
@@ -152,17 +162,7 @@ class HoverTableWidget(QTableWidget):
     def _repaint_row(self, row: int):
         if row < 0 or row >= self.rowCount():
             return
-        is_selected = any(item.row() == row for item in self.selectedItems())
-        if is_selected:
-            color = _SELECTED_COLOR
-        elif row == self._hovered_row:
-            color = _HOVER_COLOR
-        else:
-            color = _DEFAULT_COLOR
-        for col in range(self.columnCount()):
-            item = self.item(row, col)
-            if item:
-                item.setBackground(color)
+        # Simply tell the viewport to redraw this row area using our delegate
         self.viewport().update()
 
     def selectionChanged(self, selected, deselected):

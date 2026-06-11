@@ -20,6 +20,8 @@ QWidget {
     color: %TEXT_SECONDARY%;
     text-transform: uppercase;
     padding: 24px 20px 8px 20px;
+
+ 
 }
 
 #SidebarFooter {
@@ -117,8 +119,6 @@ QTableWidget {
     background-color: %PANEL_BKG%;
     border: none;
     gridline-color: %BORDERS%;
-    selection-background-color: %ROW_SELECTED%;
-    selection-color: %TEXT_ON_DARK%;
     outline: none;
     font-size: 13px;
 }
@@ -127,10 +127,10 @@ QTableWidget::item {
     border: none;
     border-bottom: 1px solid %BORDERS%;
     text-align: left;
+    /* Remove background-color modifications here */
 }
 QTableWidget::item:selected {
-    background-color: %ROW_SELECTED%;
-    color: %TEXT_ON_DARK%;
+    color: %TEXT_ON_DARK%; /* Keeps text white/light when selected */
 }
 QHeaderView::section {
     background-color: %BKG%;
@@ -141,8 +141,19 @@ QHeaderView::section {
     text-transform: uppercase;
     padding: 8px 10px;
     border: none;
+    /* Add a solid right border to serve as the visual separator line */
+    border-right: 1px solid %BORDERS%;
     border-bottom: 2px solid %BORDERS%;
     text-align: left;
+}
+
+QHeaderView::section {
+    text-align: left;
+    padding-left: 8px;
+}
+
+QTableWidget {
+    qproperty-alignment: 'AlignLeft | AlignVCenter';
 }
 
 /* ── Primary button ── */

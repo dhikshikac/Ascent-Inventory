@@ -34,7 +34,7 @@ class AddEmployeeDialog(QDialog):
         self.setMinimumWidth(480)
         self.setModal(True)
         self._dept_id = dept_id
-
+             
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 20)
         layout.setSpacing(16)
@@ -43,7 +43,7 @@ class AddEmployeeDialog(QDialog):
         title.setObjectName("DetailName")
         layout.addWidget(title)
 
-        form = QFormLayout()
+        form = QFormLayout()  
         form.setSpacing(10)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
@@ -53,7 +53,7 @@ class AddEmployeeDialog(QDialog):
         form.addRow("Employee ID *", self._id_edit)
  
         self._first_edit = QLineEdit()
-        self._first_edit.setPlaceholderText("First name")
+        self._first_edit.setPlaceholderText("First name") 
         form.addRow("First Name *", self._first_edit)
  
         self._last_edit = QLineEdit()

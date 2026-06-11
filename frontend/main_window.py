@@ -46,6 +46,10 @@ class MainWindow(QMainWindow):
         # Left: sidebar
         self._sidebar = Sidebar()
         self._sidebar.dept_selected.connect(self._on_dept_selected)
+        
+        # ── CONNECT THE ALL EMPLOYEES SIGNAL HERE ───────────────────────
+        self._sidebar.all_employees_selected.connect(self._on_all_employees_selected)
+        
         body.addWidget(self._sidebar)
 
         # Right: stacked widget — list view OR detail view
@@ -79,6 +83,20 @@ class MainWindow(QMainWindow):
         self._current_dept_name: str = ""
 
     # ── Slots ─────────────────────────────────────────────────────────────
+
+    def _on_all_employees_selected(self):
+        """Fires when clicking 'All Employees' tab on the sidebar."""
+        self._current_dept_id = None
+        self._current_dept_name = ""
+        self._stack.setCurrentIndex(_LIST_IDX)
+        self._header.clear_search()
+        
+        # Ensure your EmployeeListView file implements this method to reload data safely
+        if hasattr(self._list_view, "set_all_employees"):
+            self._list_view.set_all_employees()
+        else:
+            # Fallback if your table class uses a different method name
+            self._list_view.clear_department()
 
     def _on_dept_selected(self, dept_id: int, dept_name: str):
         self._current_dept_id = dept_id

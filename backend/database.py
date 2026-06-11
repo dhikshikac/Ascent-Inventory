@@ -39,8 +39,10 @@ def init():
             employee_id TEXT REFERENCES employees(employee_id),
             dept_id INTEGER REFERENCES departments(id),
             lab_id INTEGER REFERENCES departments(id),
+            computer_name TEXT,
             monitor_model TEXT,
             pc_model TEXT,
+            processor TEXT,
             ram TEXT,
             storage TEXT,
             os_version TEXT,
@@ -49,6 +51,12 @@ def init():
             notes TEXT
         )
     """)
+
+    # Migrate existing databases that don't have the new computers columns
+    existing_computers = {row[1] for row in c.execute("PRAGMA table_info(computers)").fetchall()}
+    for col, typedef in [("computer_name", "TEXT"), ("processor", "TEXT")]:
+        if col not in existing_computers:
+            c.execute(f"ALTER TABLE computers ADD COLUMN {col} {typedef}")
 
     c.execute("""
         CREATE TABLE IF NOT EXISTS instruments (
@@ -59,6 +67,11 @@ def init():
             notes TEXT
         )
     """)
+
+    # Migrate existing databases that don't have serial_number on instruments
+    existing_instruments = {row[1] for row in c.execute("PRAGMA table_info(instruments)").fetchall()}
+    if "serial_number" not in existing_instruments:
+        c.execute("ALTER TABLE instruments ADD COLUMN serial_number TEXT")
 
     c.execute("""
         CREATE TABLE IF NOT EXISTS labs (
@@ -100,8 +113,8 @@ def add_computer(computer_data: dict):
     c = conn.cursor()
     c.execute("""
         INSERT INTO computers
-        (computer_type, employee_id, dept_id, lab_id, monitor_model, pc_model, ram, storage, os_version, webcam_specs, desk_phone, notes)
-        VALUES (:computer_type, :employee_id, :dept_id, :lab_id, :monitor_model, :pc_model, :ram, :storage, :os_version, :webcam_specs, :desk_phone, :notes)
+        (computer_type, employee_id, dept_id, lab_id, computer_name, monitor_model, pc_model, processor, ram, storage, os_version, webcam_specs, desk_phone, notes)
+        VALUES (:computer_type, :employee_id, :dept_id, :lab_id, :computer_name, :monitor_model, :pc_model, :processor, :ram, :storage, :os_version, :webcam_specs, :desk_phone, :notes)
     """, computer_data)
     last_id = c.lastrowid
     conn.commit()

@@ -57,7 +57,7 @@ def delete_employee(employee_id):
     c.execute("DELETE FROM computers WHERE employee_id = ?", (employee_id,))
     c.execute("DELETE FROM employees WHERE employee_id = ?", (employee_id,))
     conn.commit()
-    conn.close()
+    conn.close()  
     return True
 
 def edit_employee(employee_id, **kwargs):
@@ -77,10 +77,14 @@ def edit_employee(employee_id, **kwargs):
     return True
 
 def get_all_employees():
+    """Return all employees across all departments, sorted alphabetically by last name then first name."""
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT * FROM employees")
+    c.execute("""
+        SELECT * FROM employees
+        ORDER BY last_name COLLATE NOCASE, first_name COLLATE NOCASE, employee_id
+    """)
     all_employees = [dict(row) for row in c.fetchall()]
     conn.close()
     return all_employees
@@ -118,5 +122,30 @@ def search_employees(query):
     """, (like, like, like))
     results = [dict(row) for row in c.fetchall()]
     conn.close()
-    return results 
+    return results
+
+def get_all_employees_global(sort_order="ASC"):
+    """
+    Fetches all employees across all departments globally.
+    Calculates last name for accurate sorting and returns them.
+    """
+    conn = database.get_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    # Grab every employee in the system
+    c.execute("SELECT * FROM employees")
+    rows = [dict(row) for row in c.fetchall()]
+    conn.close()
+    
+    # Helper to sort by last name, then first name cleanly in Python
+    for emp in rows:
+        last = emp.get("last_name", "") or ""
+        first = emp.get("first_name", "") or ""
+        emp["_sort_key"] = (last.lower(), first.lower())
+        
+    reverse_sort = True if sort_order.upper() == "DESC" else False
+    rows.sort(key=lambda x: x["_sort_key"], reverse=reverse_sort)
+    return rows
+
 
