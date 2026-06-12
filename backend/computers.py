@@ -127,38 +127,13 @@ def edit_computer(computer_id, **kwargs):
     return True
 
 def delete_computer(computer_id):
+    """Permanently removes a computer asset transaction from the database row ledger."""
     conn = database.get_connection()
     c = conn.cursor()
     c.execute("DELETE FROM computers WHERE id = ?", (computer_id,))
     conn.commit()
     conn.close()
     return True
-
- # def count_webcams_in_depts(dept_ids):
-    """Count computers with webcam_specs set across a list of dept ids (employee + shared)."""
-    if not dept_ids:
-        return 0
-    placeholders = ",".join("?" for _ in dept_ids)
-    conn = database.get_connection()
-    c = conn.cursor()
-    # Employee-linked webcams: join employees to get their dept
-    c.execute(f"""
-        SELECT COUNT(*) FROM computers c
-        JOIN employees e ON c.employee_id = e.employee_id
-        WHERE e.dept_id IN ({placeholders})
-        AND c.webcam_specs IS NOT NULL AND c.webcam_specs != ''
-    """, dept_ids)
-    employee_wc = c.fetchone()[0]
-    # Shared / lab webcams assigned directly to dept or lab
-    c.execute(f"""
-        SELECT COUNT(*) FROM computers
-        WHERE (dept_id IN ({placeholders}) OR lab_id IN ({placeholders}))
-        AND employee_id IS NULL
-        AND webcam_specs IS NOT NULL AND webcam_specs != ''
-    """, dept_ids + dept_ids)
-    shared_wc = c.fetchone()[0]
-    conn.close()
-    return employee_wc + shared_wc
 
 def count_webcams_in_depts(dept_ids):
     """Count computers with webcam_specs set across a list of dept ids (employee + shared)."""

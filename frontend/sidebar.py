@@ -18,9 +18,9 @@ _DEPT_ID_ROLE   = Qt.ItemDataRole.UserRole
 ALL_EMPLOYEES_ID = -1
 
 
-
 class DeptTree(QTreeWidget):
     dept_selected = pyqtSignal(int, str)
+    all_employees_selected = pyqtSignal()  # Fired when virtual item is clicked
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -35,14 +35,20 @@ class DeptTree(QTreeWidget):
         self._expanded_ids: set[int] = set()
 
     def refresh(self, selected_id=None):
-        """
-        Only called on initial startup or when a brand-new department 
-        is added via the AddDeptDialog.
-        """
         self.blockSignals(True)
         self.clear()
-        all_depts = departments.get_all_depts()
 
+        # 1. Inject the "All Employees" item at the very top of the tree structure
+        all_emp_item = QTreeWidgetItem(self)
+        all_emp_item.setText(0, "All Employees")
+        all_emp_item.setData(0, _DEPT_ID_ROLE, ALL_EMPLOYEES_ID)
+        all_emp_item.setData(0, _DEPT_NAME_ROLE, "All Employees")
+        
+        if selected_id == ALL_EMPLOYEES_ID:
+            all_emp_item.setSelected(True)
+
+        # 2. Build out the standard database departments underneath
+        all_depts = departments.get_all_depts()
         roots = [d for d in all_depts if d["parent_id"] is None]
         children_map: dict[int, list] = {}
         for d in all_depts:
@@ -67,11 +73,9 @@ class DeptTree(QTreeWidget):
             if dept["id"] == selected_id:
                 item.setSelected(True)
 
-            # Build ALL items into the tree structure immediately
             if has_children:
                 for child in children_map.get(dept["id"], []):
                     add_item(item, child, depth + 1)
-                # Apply initial expansion state smoothly
                 item.setExpanded(is_expanded)
 
             return item
@@ -85,32 +89,30 @@ class DeptTree(QTreeWidget):
         dept_id   = item.data(0, _DEPT_ID_ROLE)
         dept_name = item.data(0, _DEPT_NAME_ROLE)
 
-        # Check if this dept has children natively without DB calls
+        # Handle the custom virtual "All Employees" top item click
+        if dept_id == ALL_EMPLOYEES_ID:
+            self.clearSelection()
+            item.setSelected(True)
+            self.all_employees_selected.emit()
+            return
+
         has_children = item.childCount() > 0
 
         if has_children:
             self.blockSignals(True)
-            
-            # Toggle native state and tracking set
             if item.isExpanded():
                 item.setExpanded(False)
                 self._expanded_ids.discard(dept_id)
                 item.setText(0, f"{dept_name}  ▶")
-                
-                # Clear selection when collapsing per your spec
                 self.clearSelection() 
             else:
                 item.setExpanded(True)
                 self._expanded_ids.add(dept_id)
                 item.setText(0, f"{dept_name}  ▼")
-                
-                # Keep parent highlighted when expanding
                 self.clearSelection()
                 item.setSelected(True)
-                
             self.blockSignals(False)
         else:
-            # Leaf dept — load inventory and highlight natively
             self.clearSelection()
             item.setSelected(True)
             self.dept_selected.emit(dept_id, dept_name)
@@ -175,10 +177,9 @@ class AddDeptDialog(QDialog):
             return
         self.accept()
 
-
 class Sidebar(QWidget):
     dept_selected          = pyqtSignal(int, str)
-    all_employees_selected = pyqtSignal()  # fired when All Employees tab is clicked
+    all_employees_selected = pyqtSignal()  # routed seamlessly to main window window manager
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -197,22 +198,13 @@ class Sidebar(QWidget):
 
         layout.addWidget(h_separator())
 
-        # ── All Employees tab ──────────────────────────────────────────
-        self._all_emp_btn = QPushButton("All Employees")
-        self._all_emp_btn.setObjectName("AllEmployeesBtn")
-        self._all_emp_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._all_emp_btn.setFlat(True)
-        self._all_emp_btn.setCheckable(True)  # Fixes highlighting & toggle state
-        
-        # Forces text completely to the left side edge with padding
-        self._all_emp_btn.setStyleSheet("text-align: left; padding-left: 16px;")
-        
-        self._all_emp_btn.clicked.connect(self._on_all_employees)
-        layout.addWidget(self._all_emp_btn)
-
-        # ── Department tree ────────────────────────────────────────────
+        # ── Unified Department Tree Framework ──────────────────────────
         self._tree = DeptTree()
         self._tree.dept_selected.connect(self._on_dept_selected)
+        
+        # Capture the updated virtual tab emission here
+        self._tree.all_employees_selected.connect(self._on_all_employees)
+        
         layout.addWidget(self._tree, 1)
 
         layout.addWidget(h_separator())
@@ -228,6 +220,7 @@ class Sidebar(QWidget):
         footer_layout.addWidget(add_button)
         layout.addWidget(footer)
 
+        # Initialize tracking with the virtual ID selected by default on boot
         self._selected_id: int | None = None
 
     def refresh(self):
@@ -236,17 +229,13 @@ class Sidebar(QWidget):
     def clear_selection(self):
         self._selected_id = None
         self._tree.clearSelection()
-        self._all_emp_btn.setChecked(False)
 
     def _on_dept_selected(self, dept_id: int, dept_name: str):
         self._selected_id = dept_id
-        self._all_emp_btn.setChecked(False)
         self.dept_selected.emit(dept_id, dept_name)
 
     def _on_all_employees(self):
-        self._selected_id = None
-        self._tree.clearSelection()
-        self._all_emp_btn.setChecked(True)
+        self._selected_id = ALL_EMPLOYEES_ID
         self.all_employees_selected.emit()
 
     def _add_dept(self):

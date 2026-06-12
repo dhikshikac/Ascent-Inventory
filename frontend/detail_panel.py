@@ -273,6 +273,8 @@ class InventoryDetailView(QWidget):
         self._root_layout.setSpacing(0)
         self._content_widget: QWidget | None = None
 
+        self._del_btn = None
+
     def load(self, kind: str, record_id: int):
         self._kind = kind
         self._record_id = record_id
@@ -319,6 +321,19 @@ class InventoryDetailView(QWidget):
         meta_lbl.setObjectName("DetailId")
         hl.addWidget(meta_lbl)
 
+        # ── Shared Action Row ─────────────────────────────────────────
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        btn_row.setContentsMargins(0, 12, 0, 0)
+        btn_row.addStretch()
+
+        # Contextual label definition depending on view loading configurations
+        btn_text = f"Delete {self._kind}" if self._kind else "Delete Asset"
+        self._del_btn = danger_button(btn_text)
+        self._del_btn.clicked.connect(self._on_delete_asset_clicked)
+        btn_row.addWidget(self._del_btn)
+
+        hl.addLayout(btn_row)
         outer.addWidget(header)
         return outer
 
@@ -396,6 +411,30 @@ class InventoryDetailView(QWidget):
         body.setAlignment(Qt.AlignmentFlag.AlignTop)
         scroll.setWidget(scroll_inner)
         return scroll, body
+
+    def _on_delete_asset_clicked(self):
+        """Unified dynamic asset handling method routing logic via runtime types."""
+        if not self._kind or not self._record_id:
+            return
+
+        # Format prefix headers cleanly
+        prefix = "COMP" if self._kind == "Computer" else "INST"
+        
+        reply = QMessageBox.question(
+            self, f"Delete {self._kind}",
+            f"Are you sure you want to permanently delete {self._kind.lower()} asset record {prefix}-{self._record_id}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            if self._kind == "Computer":
+                computers.delete_computer(self._record_id)
+            elif self._kind == "Instrument":
+                instruments.delete_instrument(self._record_id)
+                
+            self._record_id = None
+            self.data_changed.emit()
+            self.back_clicked.emit()
 
 
 def _computer_label(computer: dict) -> str:

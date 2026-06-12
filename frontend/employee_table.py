@@ -290,7 +290,7 @@ class EmployeeListView(QWidget):
         self._empty.hide()
         self._all_emp_table.show()
 
-            
+            # hungeryyy, thats cra
             # Update sort arrow in header # 
         
         header = self._all_emp_table.horizontalHeader()
@@ -300,12 +300,14 @@ class EmployeeListView(QWidget):
         )
 
         # ADD THIS LOOP HERE TO ALIGN ALL HEADERS TO THE LEFT:
+        
         for i in range(len(_ALL_EMP_COLUMNS)):
             header_item = self._all_emp_table.horizontalHeaderItem(i)
             if header_item:
                 header_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         # ADD THIS LOOP HERE TO ALIGN ALL HEADERS TO THE LEFT:
+       
         for i in range(len(_ALL_EMP_COLUMNS)):
             header_item = self._all_emp_table.horizontalHeaderItem(i)
             if header_item:
