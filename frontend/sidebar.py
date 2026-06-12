@@ -242,3 +242,5 @@ class Sidebar(QWidget):
         dlg = AddDeptDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self.refresh()
+
+            
