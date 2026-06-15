@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QLineEdit, QVBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap
 
-from frontend.theme import SIDEBAR_MIN_WIDTH
+from frontend.theme import SIDEBAR_MIN_WIDTH, TEXT_SECONDARY
 
 class HeaderBar(QWidget):
     search_changed = pyqtSignal(str)
@@ -39,7 +39,7 @@ class HeaderBar(QWidget):
         if context:
             sep = QLabel(" / ")
             sep.setObjectName("HeaderSeparator")
-            sep.setStyleSheet(f"color: #E5E7EB; font-size: 16px; padding: 0 4px;")
+            sep.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 16px; padding: 0 4px;")
             layout.addWidget(sep)
 
             context_label = QLabel(context)
@@ -54,10 +54,6 @@ class HeaderBar(QWidget):
             self._search.setPlaceholderText("Search employees, IDs...")
             self._search.textChanged.connect(self.search_changed)
             layout.addWidget(self._search)
-
-    def set_search_text(self, text: str):
-        if hasattr(self, "_search"):
-            self._search.setText(text)
 
     def clear_search(self):
         if hasattr(self, "_search"):

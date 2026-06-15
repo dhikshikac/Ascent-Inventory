@@ -1,10 +1,10 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QHBoxLayout, QListWidget, QTableWidget,
-    QTableWidgetItem, QAbstractItemView, QFrame, QSizePolicy, QPushButton,
-    QStyledItemDelegate, QStyle
+    QWidget, QVBoxLayout, QLabel, QFrame, QSizePolicy, QPushButton,
+    QStyledItemDelegate, QStyle, QTableWidget,
 )
 from PyQt6.QtCore import Qt, QEvent
-from PyQt6.QtGui import QFont, QColor
+from PyQt6.QtGui import QColor
+
 
 def primary_button(text: str, parent=None) -> QPushButton:
     btn = QPushButton(text, parent)
@@ -12,11 +12,13 @@ def primary_button(text: str, parent=None) -> QPushButton:
     btn.setCursor(Qt.CursorShape.PointingHandCursor)
     return btn
 
+
 def ghost_button(text: str, parent=None) -> QPushButton:
     btn = QPushButton(text, parent)
     btn.setObjectName("GhostBtn")
     btn.setCursor(Qt.CursorShape.PointingHandCursor)
     return btn
+
 
 def danger_button(text: str, parent=None) -> QPushButton:
     btn = QPushButton(text, parent)
@@ -24,16 +26,19 @@ def danger_button(text: str, parent=None) -> QPushButton:
     btn.setCursor(Qt.CursorShape.PointingHandCursor)
     return btn
 
+
 def back_button(text: str, parent=None) -> QPushButton:
     btn = QPushButton(text, parent)
     btn.setObjectName("BackBtn")
     btn.setCursor(Qt.CursorShape.PointingHandCursor)
     return btn
 
+
 def section_label(text: str, parent=None) -> QLabel:
     label = QLabel(text.upper(), parent)
     label.setObjectName("SectionLabel")
     return label
+
 
 def h_separator() -> QFrame:
     line = QFrame()
@@ -42,12 +47,6 @@ def h_separator() -> QFrame:
     line.setStyleSheet("color: #E5E7EB; background-color: #E5E7EB; max-height: 1px;")
     return line
 
-def v_separator() -> QFrame:
-    line = QFrame()
-    line.setFrameShape(QFrame.Shape.VLine)
-    line.setFrameShadow(QFrame.Shadow.Sunken)
-    line.setStyleSheet("color: #E5E7EB; background-color: #E5E7EB; max-width: 1px;")
-    return line
 
 def empty_state(message: str) -> QWidget:
     widget = QWidget()
@@ -60,16 +59,17 @@ def empty_state(message: str) -> QWidget:
     layout.addWidget(label)
     return widget
 
-def field_pair(label_text: str, value_text:str, parent=None) -> QWidget:
+
+def field_pair(label_text: str, value_text: str, parent=None) -> QWidget:
     widget = QWidget(parent)
     widget.setObjectName("FieldPair")
     layout = QVBoxLayout(widget)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(2)
-    
+
     label = QLabel(label_text.upper())
     label.setObjectName("FieldLabel")
-    
+
     value = QLabel(value_text or "-")
     value.setObjectName("FieldValue")
     value.setWordWrap(True)
@@ -78,18 +78,19 @@ def field_pair(label_text: str, value_text:str, parent=None) -> QWidget:
     layout.addWidget(value)
     return widget
 
-def spacer(horizontal: bool = True) -> QWidget:
-    widget = QWidget()
-    if horizontal:
-        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-    else:
-        widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-    return widget
+
+def computer_label(computer: dict) -> str:
+    for key in ("pc_model", "monitor_model", "os_version"):
+        value = computer.get(key)
+        if value:
+            return value
+    return f"Computer {computer.get('id')}"
 
 
-_HOVER_COLOR   = QColor("#DBEAFE")
+_HOVER_COLOR = QColor("#DBEAFE")
 _DEFAULT_COLOR = QColor("#FFFFFF")
 _SELECTED_COLOR = QColor("#7E9DDE")
+
 
 class HoverRowDelegate(QStyledItemDelegate):
     """Paints the hovered or selected table row across every cell."""
@@ -98,24 +99,17 @@ class HoverRowDelegate(QStyledItemDelegate):
         table = self.parent()
         if isinstance(table, HoverTableWidget):
             painter.save()
-            
-            # 1. Check Selection State
             if option.state & QStyle.StateFlag.State_Selected:
                 painter.fillRect(option.rect, _SELECTED_COLOR)
-                
-            # 2. Check Hover State (only if not selected)
             elif index.row() == table.hovered_row():
                 painter.fillRect(option.rect, _HOVER_COLOR)
-                
-            # 3. Default Background
             else:
                 painter.fillRect(option.rect, _DEFAULT_COLOR)
-                
             painter.restore()
-            
-        # Draw the cell text/content on top of our custom painted background
+
         super().paint(painter, option, index)
-        
+
+
 class HoverTableWidget(QTableWidget):
     """QTableWidget that highlights the entire hovered row."""
 
@@ -162,7 +156,6 @@ class HoverTableWidget(QTableWidget):
     def _repaint_row(self, row: int):
         if row < 0 or row >= self.rowCount():
             return
-        # Simply tell the viewport to redraw this row area using our delegate
         self.viewport().update()
 
     def selectionChanged(self, selected, deselected):

@@ -11,7 +11,7 @@ import backend.employees as employees
 import backend.departments as departments
 import backend.computers as computers
 import backend.instruments as instruments
-from frontend.widgets import primary_button, danger_button, empty_state, HoverTableWidget
+from frontend.widgets import primary_button, danger_button, empty_state, HoverTableWidget, computer_label
 from frontend.dialogs import AddEmployeeDialog, AddComputerDialog, AddInstrumentDialog
 
 _COLUMNS = [
@@ -133,8 +133,6 @@ class EmployeeListView(QWidget):
 
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
-        
-        
 
         self._dept_label = QLabel("Select a department")
         self._dept_label.setObjectName("DetailName")
@@ -343,7 +341,7 @@ class EmployeeListView(QWidget):
             rows.append({
                 "_kind": "Computer",
                 "_item_id": f"COMP-{comp.get('id')}",
-                "_name": self._computer_label(comp),
+                "_name": computer_label(comp),
                 "_dept_name": dept_names.get(comp.get("dept_id") or comp.get("lab_id"), "Unassigned"),
                 "_devices": self._computer_specs(comp),
                 "_notes": comp.get("notes", "") or "",
@@ -384,18 +382,16 @@ class EmployeeListView(QWidget):
                 header_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         dept_names = {d["id"]: d["name"] for d in departments.get_all_depts()}
-       
+
         all_emps = sorted(
             employees.get_all_employees(),
             key=lambda e: (
-                 (e.get("last_name") or "").lower(),
-                 (e.get("first_name") or "").lower(),
-             ),
-  
-                 reverse=not self._all_emp_sort_asc
+                (e.get("last_name") or "").lower(),
+                (e.get("first_name") or "").lower(),
+            ),
+            reverse=not self._all_emp_sort_asc,
         )
 
-        # Apply filter
         f = self._filter
         if f:
             all_emps = [
@@ -406,7 +402,6 @@ class EmployeeListView(QWidget):
             ]
 
         self.search_available_changed.emit(True)
-        self._set_all_emp_name_header()
 
         self._all_emp_table.setRowCount(0)
         if not all_emps:
@@ -530,6 +525,7 @@ class EmployeeListView(QWidget):
             return
         dlg = AddComputerDialog(dept_id=self._dept_id, parent=self)
         if dlg.exec() == AddComputerDialog.DialogCode.Accepted:
+            self.data_changed.emit()
             self.refresh()
 
     def _add_instrument(self):
@@ -537,6 +533,7 @@ class EmployeeListView(QWidget):
             return
         dlg = AddInstrumentDialog(lab_id=self._dept_id, parent=self)
         if dlg.exec() == AddInstrumentDialog.DialogCode.Accepted:
+            self.data_changed.emit()
             self.refresh()
 
     def _delete_department(self):
@@ -594,15 +591,8 @@ class EmployeeListView(QWidget):
     def _device_preview(self, devices: list[dict]) -> str:
         if not devices:
             return "No computer assigned"
-        labels = [self._computer_label(device) for device in devices]
+        labels = [computer_label(device) for device in devices]
         return ", ".join(labels)
-
-    def _computer_label(self, computer: dict) -> str:
-        for key in ("pc_model", "monitor_model", "os_version"):
-            value = computer.get(key)
-            if value:
-                return value
-        return f"Computer {computer.get('id')}"
 
     def _computer_specs(self, computer: dict) -> str:
         specs = [

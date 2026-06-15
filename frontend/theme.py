@@ -1,12 +1,10 @@
-
 import os
 
-#Color Palette
+# Color palette
 BKG = "#F9FAFB"
 SIDEBAR_BKG = "#E5E7EB"
 PANEL_BKG = "#F9FAFB"
 HEADER_BKG = "#111827"
-#HEADER_BKG = "#F9FAFB"
 ACCENT = "#2563EB"
 ACCENT_HOVER = "#000080"
 TEXT_PRIMARY = "#4B5563"
@@ -17,19 +15,11 @@ ROW_ALTERNATE = "#F3F4F6"
 ROW_HOVER = "#E5E7EB"
 ROW_SELECTED = "#7E9DDE"
 
-#Fonts 
-FONT_FAMILY = "Inter, sans-serif"
-FONT_SIZE_BASE = "16px"
-FONT_SIZE_SMALL = "14px"
-FONT_SIZE_LARGE = "18px"
-FONT_WEIGHT_NORMAL = "400"
-FONT_WEIGHT_BOLD = "700"
-
-#Screen Sizes 
+# Screen sizes
 SIDEBAR_MIN_WIDTH = 200
 SIDEBAR_MAX_WIDTH = 400
 WINDOW_MIN_WIDTH = 900
-WINDOW_MAX_HEIGHT = 600
+WINDOW_MIN_HEIGHT = 600
 
 _QSS_PATH = os.path.join(os.path.dirname(__file__), "styles.qss")
 
@@ -48,6 +38,7 @@ _TOKENS = {
     "ROW_HOVER":      ROW_HOVER,
     "ROW_SELECTED":   ROW_SELECTED,
 }
+
 
 def load_stylesheet() -> str:
     with open(_QSS_PATH, "r") as f:

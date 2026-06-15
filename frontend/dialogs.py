@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
+    QDialog, QVBoxLayout, QFormLayout, QLabel,
     QLineEdit, QComboBox, QTextEdit, QDialogButtonBox,
-    QMessageBox, QWidget, QTabWidget, QGridLayout, QSizePolicy
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt
 
@@ -263,7 +263,7 @@ class EditComputerDialog(QDialog):
         layout.setContentsMargins(28, 24, 28, 20)
         layout.setSpacing(16)
 
-        title = QLabel(f"Edit Device")
+        title = QLabel("Edit Device")
         title.setObjectName("DetailName")
         layout.addWidget(title)
 
