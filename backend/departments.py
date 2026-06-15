@@ -231,7 +231,7 @@ def get_all_depts():
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    c.execute("SELECT * FROM departments")
+    c.execute("SELECT * FROM departments ORDER BY name COLLATE NOCASE")
     all_depts = [dict(row) for row in c.fetchall()]
 
     conn.close()
@@ -251,7 +251,10 @@ def get_subdepts(name):
     conn = database.get_connection()
     c = conn.cursor()
 
-    c.execute("SELECT * FROM departments WHERE parent_id = ?", (dept_id,))
+    c.execute(
+        "SELECT * FROM departments WHERE parent_id = ? ORDER BY name COLLATE NOCASE",
+        (dept_id,),
+    )
     subdepts = [dict(row) for row in c.fetchall()]
     
     conn.close()
@@ -264,7 +267,10 @@ def get_subdepts_by_id(dept_id):
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT * FROM departments WHERE parent_id = ?", (dept_id,))
+    c.execute(
+        "SELECT * FROM departments WHERE parent_id = ? ORDER BY name COLLATE NOCASE",
+        (dept_id,),
+    )
     subdepts = [dict(row) for row in c.fetchall()]
     conn.close()
     return subdepts

@@ -2,43 +2,134 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QHBoxLayout,
     QTreeWidget, QTreeWidgetItem, QDialog, QDialogButtonBox,
     QFormLayout, QLineEdit, QComboBox, QMessageBox, QFrame,
-    QPushButton
+    QPushButton, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, pyqtSignal, QRect
+from PyQt6.QtGui import QIcon, QColor, QPainter
 
 import backend.departments as departments
-from frontend.theme import SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH
+from frontend.theme import (
+    SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH,
+    SIDEBAR_BKG, ROW_SELECTED, ROW_HOVER, TEXT_PRIMARY, TEXT_ON_DARK,
+)
 from frontend.widgets import primary_button, section_label, h_separator
 
 _DEPT_NAME_ROLE = Qt.ItemDataRole.UserRole.value + 1
 _DEPT_ID_ROLE   = Qt.ItemDataRole.UserRole
 
-# Sentinel dept_id for the "All Employees" virtual tab
 ALL_EMPLOYEES_ID = -1
+
+
+class _DeptRowDelegate(QStyledItemDelegate):
+    ICON_SIZE = 14
+    ICON_MARGIN = 10
+    _SIDEBAR = QColor(SIDEBAR_BKG)
+    _SELECTED = QColor(ROW_SELECTED)
+    _HOVER = QColor(ROW_HOVER)
+
+    def __init__(self, icon_down: QIcon, icon_up: QIcon, parent=None):
+        super().__init__(parent)
+        self._icon_down = icon_down
+        self._icon_up = icon_up
+
+    def _item_depth(self, item: QTreeWidgetItem) -> int:
+        depth = 0
+        parent = item.parent()
+        while parent:
+            depth += 1
+            parent = parent.parent()
+        return depth
+
+    def _item_indent(self, tree: QTreeWidget, item: QTreeWidgetItem) -> int:
+        return tree.indentation() * self._item_depth(item)
+
+    def paint(self, painter, option, index):
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+
+        tree = opt.widget
+        item = tree.itemFromIndex(index) if isinstance(tree, QTreeWidget) else None
+        indent = self._item_indent(tree, item) if item and tree else 0
+        content_rect = QRect(option.rect)
+
+        row_rect = QRect(option.rect)
+        if indent:
+            row_rect = row_rect.adjusted(-indent, 0, 0, 0)
+
+        selected = bool(opt.state & QStyle.StateFlag.State_Selected)
+        hovered = bool(opt.state & QStyle.StateFlag.State_MouseOver)
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if selected:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(self._SELECTED)
+            painter.drawRoundedRect(row_rect, 5, 5)
+        elif hovered:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(self._HOVER)
+            painter.drawRoundedRect(row_rect, 5, 5)
+        elif indent:
+            indent_rect = QRect(
+                option.rect.left() - indent, option.rect.top(),
+                indent, option.rect.height(),
+            )
+            painter.fillRect(indent_rect, self._SIDEBAR)
+        painter.restore()
+
+        text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        text_left = content_rect.left() + 8 + indent
+        text_right = content_rect.right()
+        if item and item.childCount() > 0:
+            text_right -= self.ICON_SIZE + self.ICON_MARGIN
+
+        text_rect = QRect(
+            text_left, content_rect.top(),
+            text_right - text_left, content_rect.height(),
+        )
+        if selected:
+            painter.setPen(QColor(TEXT_ON_DARK))
+        else:
+            painter.setPen(QColor(TEXT_PRIMARY))
+        painter.drawText(
+            text_rect,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            text,
+        )
+
+        if item and item.childCount() > 0:
+            icon = self._icon_up if item.isExpanded() else self._icon_down
+            icon_rect = QRect(
+                content_rect.right() - self.ICON_SIZE - self.ICON_MARGIN,
+                content_rect.center().y() - self.ICON_SIZE // 2,
+                self.ICON_SIZE,
+                self.ICON_SIZE,
+            )
+            icon.paint(painter, icon_rect)
 
 
 class DeptTree(QTreeWidget):
     dept_selected = pyqtSignal(int, str)
-    all_employees_selected = pyqtSignal()  # Fired when virtual item is clicked
+    all_employees_selected = pyqtSignal() 
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setHeaderHidden(True)
         self.setIndentation(16)
         self.setAnimated(True)
-        self.setRootIsDecorated(False) # Kept False to hide native OS arrows
+        self.setRootIsDecorated(False) 
         self.itemClicked.connect(self._on_click)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-       
-        # Track expanded states across full database reloads
+        self._icon_down = QIcon("media/down.svg")
+        self._icon_up = QIcon("media/up.svg")
+        self.setItemDelegate(_DeptRowDelegate(self._icon_down, self._icon_up, self))
+
         self._expanded_ids: set[int] = set()
 
     def refresh(self, selected_id=None):
         self.blockSignals(True)
         self.clear()
 
-        # 1. Inject the "All Employees" item at the very top of the tree structure
         all_emp_item = QTreeWidgetItem(self)
         all_emp_item.setText(0, "All Employees")
         all_emp_item.setData(0, _DEPT_ID_ROLE, ALL_EMPLOYEES_ID)
@@ -47,7 +138,6 @@ class DeptTree(QTreeWidget):
         if selected_id == ALL_EMPLOYEES_ID:
             all_emp_item.setSelected(True)
 
-        # 2. Build out the standard database departments underneath
         all_depts = departments.get_all_depts()
         roots = [d for d in all_depts if d["parent_id"] is None]
         children_map: dict[int, list] = {}
@@ -60,12 +150,7 @@ class DeptTree(QTreeWidget):
             has_children = bool(children_map.get(dept["id"]))
             is_expanded = dept["id"] in self._expanded_ids
 
-            name = dept["name"]
-            if has_children:
-                chevron = "▼" if is_expanded else "▶"
-                item.setText(0, f"{name}  {chevron}")
-            else:
-                item.setText(0, f"  {name}" if depth > 0 else name)
+            item.setText(0, dept["name"])
 
             item.setData(0, _DEPT_ID_ROLE, dept["id"])
             item.setData(0, _DEPT_NAME_ROLE, dept["name"])
@@ -74,13 +159,15 @@ class DeptTree(QTreeWidget):
                 item.setSelected(True)
 
             if has_children:
-                for child in children_map.get(dept["id"], []):
+                for child in sorted(
+                    children_map.get(dept["id"], []), key=lambda d: d["name"].lower()
+                ):
                     add_item(item, child, depth + 1)
                 item.setExpanded(is_expanded)
 
             return item
 
-        for root_dept in roots:
+        for root_dept in sorted(roots, key=lambda d: d["name"].lower()):
             add_item(self, root_dept)
 
         self.blockSignals(False)
@@ -103,14 +190,13 @@ class DeptTree(QTreeWidget):
             if item.isExpanded():
                 item.setExpanded(False)
                 self._expanded_ids.discard(dept_id)
-                item.setText(0, f"{dept_name}  ▶")
-                self.clearSelection() 
+                self.clearSelection()
             else:
                 item.setExpanded(True)
                 self._expanded_ids.add(dept_id)
-                item.setText(0, f"{dept_name}  ▼")
                 self.clearSelection()
                 item.setSelected(True)
+            self.viewport().update()
             self.blockSignals(False)
         else:
             self.clearSelection()
@@ -179,7 +265,8 @@ class AddDeptDialog(QDialog):
 
 class Sidebar(QWidget):
     dept_selected          = pyqtSignal(int, str)
-    all_employees_selected = pyqtSignal()  # routed seamlessly to main window window manager
+    all_employees_selected = pyqtSignal()
+    width_changed          = pyqtSignal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -222,6 +309,10 @@ class Sidebar(QWidget):
 
         # Initialize tracking with the virtual ID selected by default on boot
         self._selected_id: int | None = None
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.width_changed.emit(self.width())
 
     def refresh(self):
         self._tree.refresh(self._selected_id)

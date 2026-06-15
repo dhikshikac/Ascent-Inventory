@@ -1,10 +1,12 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTableWidgetItem, QAbstractItemView,
-    QHeaderView, QMessageBox, QScrollArea,
-) 
-from PyQt6.QtCore import Qt, pyqtSignal
+    QHeaderView, QMessageBox, QScrollArea, QStyle, QStyleOptionHeader,
+)
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QRect
+from PyQt6.QtGui import QIcon, QPalette
 
+import os
 import backend.employees as employees
 import backend.departments as departments
 import backend.computers as computers
@@ -28,6 +30,72 @@ _ALL_EMP_COLUMNS = [
     ("Department", "_dept_name"),
 ]
 
+_MEDIA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "media")
+_SORT_ICON_SIZE = QSize(16, 16)
+
+
+def _sort_icon(filename: str) -> QIcon:
+    icon = QIcon()
+    icon.addFile(os.path.join(_MEDIA_DIR, filename), _SORT_ICON_SIZE)
+    return icon
+
+
+class _AllEmpHeaderView(QHeaderView):
+    _SORT_COL = 0
+    _ICON_MARGIN = 10
+    _TEXT_MARGIN = 10
+
+    def __init__(self, icon_getter, parent=None):
+        super().__init__(Qt.Orientation.Horizontal, parent)
+        self._icon_getter = icon_getter
+        self.setSectionsClickable(True)
+
+    def paintSection(self, painter, rect, logical_index):
+        model = self.model()
+        text = ""
+        if model:
+            text = str(model.headerData(
+                logical_index, self.orientation(), Qt.ItemDataRole.DisplayRole
+            ) or "")
+
+        opt = QStyleOptionHeader()
+        self.initStyleOption(opt)
+        opt.rect = rect
+        opt.section = logical_index
+        opt.textAlignment = (
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+
+        if logical_index == self._SORT_COL:
+            bg_opt = QStyleOptionHeader(opt)
+            bg_opt.text = ""
+            self.style().drawControl(QStyle.ControlElement.CE_Header, bg_opt, painter, self)
+
+            icon = self._icon_getter()
+            icon_w = _SORT_ICON_SIZE.width() if not icon.isNull() else 0
+            text_right = rect.right() - icon_w - self._ICON_MARGIN
+            text_rect = QRect(
+                rect.left() + self._TEXT_MARGIN, rect.top(),
+                text_right - rect.left() - self._TEXT_MARGIN, rect.height(),
+            )
+            painter.setPen(opt.palette.color(QPalette.ColorRole.WindowText))
+            painter.drawText(
+                text_rect,
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                text,
+            )
+            if not icon.isNull():
+                icon_rect = QRect(
+                    rect.right() - icon_w - self._ICON_MARGIN,
+                    rect.center().y() - _SORT_ICON_SIZE.height() // 2,
+                    icon_w,
+                    _SORT_ICON_SIZE.height(),
+                )
+                icon.paint(painter, icon_rect)
+        else:
+            opt.text = text
+            self.style().drawControl(QStyle.ControlElement.CE_Header, opt, painter, self)
+
 
 class EmployeeListView(QWidget):
     employee_selected = pyqtSignal(str)
@@ -49,6 +117,8 @@ class EmployeeListView(QWidget):
 
         # Sort state for All Employees view: True = A→Z, False = Z→A
         self._all_emp_sort_asc: bool = True
+        self._icon_sort_up = _sort_icon("up.svg")
+        self._icon_sort_down = _sort_icon("down.svg")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -143,10 +213,12 @@ class EmployeeListView(QWidget):
 
         # ── All Employees table ───────────────────────────────────────
         self._all_emp_table = HoverTableWidget()
+        self._all_emp_header = _AllEmpHeaderView(self._current_sort_icon, self._all_emp_table)
+        self._all_emp_table.setHorizontalHeader(self._all_emp_header)
         self._all_emp_table.setColumnCount(len(_ALL_EMP_COLUMNS))
         self._all_emp_table.setHorizontalHeaderLabels([c[0] for c in _ALL_EMP_COLUMNS])
-        self._all_emp_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self._all_emp_table.horizontalHeader().setStretchLastSection(True)
+        self._all_emp_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self._all_emp_header.setStretchLastSection(True)
         self._all_emp_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._all_emp_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._all_emp_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -157,7 +229,7 @@ class EmployeeListView(QWidget):
         self._all_emp_table.setColumnWidth(0, 220)
         self._all_emp_table.setColumnWidth(1, 160)
         # Clicking the Name header toggles sort direction
-        self._all_emp_table.horizontalHeader().sectionClicked.connect(
+        self._all_emp_header.sectionClicked.connect(
             self._on_all_emp_header_clicked
         )
         self._all_emp_table.itemSelectionChanged.connect(self._on_all_emp_selection)
@@ -284,30 +356,28 @@ class EmployeeListView(QWidget):
 
     # ── All Employees helpers ─────────────────────────────────────────
 
+    def _current_sort_icon(self) -> QIcon:
+        return self._icon_sort_up if self._all_emp_sort_asc else self._icon_sort_down
+
+    def _set_all_emp_name_header(self):
+        header_item = self._all_emp_table.horizontalHeaderItem(0)
+        if header_item is None:
+            header_item = QTableWidgetItem("Name")
+            self._all_emp_table.setHorizontalHeaderItem(0, header_item)
+        else:
+            header_item.setText("Name")
+        header_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._all_emp_header.updateSection(0)
+
     def _refresh_all_employees(self):
         """Populate the All Employees table."""
         self._table_scroll.hide()
         self._empty.hide()
         self._all_emp_table.show()
+        self._set_all_emp_name_header()
 
-            # hungeryyy, thats cra
-            # Update sort arrow in header # 
-        
-        header = self._all_emp_table.horizontalHeader()
-        sort_label = "Name ▲" if self._all_emp_sort_asc else "Name ▼"
-        self._all_emp_table.setHorizontalHeaderItem(
-            0, QTableWidgetItem(sort_label)
-        )
-
-        # ADD THIS LOOP HERE TO ALIGN ALL HEADERS TO THE LEFT:
-        
-        for i in range(len(_ALL_EMP_COLUMNS)):
-            header_item = self._all_emp_table.horizontalHeaderItem(i)
-            if header_item:
-                header_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-
-        # ADD THIS LOOP HERE TO ALIGN ALL HEADERS TO THE LEFT:
-       
         for i in range(len(_ALL_EMP_COLUMNS)):
             header_item = self._all_emp_table.horizontalHeaderItem(i)
             if header_item:
@@ -336,13 +406,7 @@ class EmployeeListView(QWidget):
             ]
 
         self.search_available_changed.emit(True)
-
-        # Update sort arrow in header
-        header = self._all_emp_table.horizontalHeader()
-        sort_label = "Name ▲" if self._all_emp_sort_asc else "Name ▼"
-        self._all_emp_table.setHorizontalHeaderItem(
-            0, QTableWidgetItem(sort_label)
-        )
+        self._set_all_emp_name_header()
 
         self._all_emp_table.setRowCount(0)
         if not all_emps:

@@ -46,10 +46,9 @@ class MainWindow(QMainWindow):
         # Left: sidebar
         self._sidebar = Sidebar()
         self._sidebar.dept_selected.connect(self._on_dept_selected)
-        
-        # ── CONNECT THE ALL EMPLOYEES SIGNAL HERE ───────────────────────
         self._sidebar.all_employees_selected.connect(self._on_all_employees_selected)
-        
+        self._sidebar.width_changed.connect(self._header.set_brand_width)
+
         body.addWidget(self._sidebar)
 
         # Right: stacked widget — list view OR detail view
