@@ -69,6 +69,27 @@ def get_name(dept_id):
     conn.close()
     return result[0] if result else "Unassigned"
 
+def _children_map(all_depts: list[dict]) -> dict[int, list[int]]:
+    children_map: dict[int, list[int]] = {}
+    for dept in all_depts:
+        parent_id = dept["parent_id"]
+        if parent_id is not None:
+            children_map.setdefault(parent_id, []).append(dept["id"])
+    return children_map
+
+
+def _collect_descendant_ids(root_id: int, children_map: dict[int, list[int]]) -> list[int]:
+    ids: list[int] = []
+
+    def collect(current_id: int):
+        ids.append(current_id)
+        for child_id in children_map.get(current_id, []):
+            collect(child_id)
+
+    collect(root_id)
+    return ids
+
+
 def get_descendant_ids(dept_id, include_self=True):
     """
     Returns department ids under dept_id, including nested sub-departments.
@@ -80,20 +101,7 @@ def get_descendant_ids(dept_id, include_self=True):
     all_depts = [dict(row) for row in c.fetchall()]
     conn.close()
 
-    children_map: dict[int, list[int]] = {}
-    for dept in all_depts:
-        parent_id = dept["parent_id"]
-        if parent_id is not None:
-            children_map.setdefault(parent_id, []).append(dept["id"])
-
-    ids: list[int] = []
-
-    def collect(current_id: int):
-        ids.append(current_id)
-        for child_id in children_map.get(current_id, []):
-            collect(child_id)
-
-    collect(dept_id)
+    ids = _collect_descendant_ids(dept_id, _children_map(all_depts))
     return ids if include_self else ids[1:]
 
 def delete_dept_by_id(dept_id):
@@ -112,20 +120,7 @@ def delete_dept_by_id(dept_id):
 
     c.execute("SELECT id, parent_id FROM departments")
     all_depts = [dict(row) for row in c.fetchall()]
-    children_map: dict[int, list[int]] = {}
-    for dept in all_depts:
-        parent_id = dept["parent_id"]
-        if parent_id is not None:
-            children_map.setdefault(parent_id, []).append(dept["id"])
-
-    dept_ids: list[int] = []
-
-    def collect(current_id: int):
-        dept_ids.append(current_id)
-        for child_id in children_map.get(current_id, []):
-            collect(child_id)
-
-    collect(dept_id)
+    dept_ids = _collect_descendant_ids(dept_id, _children_map(all_depts))
     placeholders = ",".join("?" for _ in dept_ids)
 
     c.execute(f"SELECT employee_id FROM employees WHERE dept_id IN ({placeholders})", dept_ids)
@@ -231,7 +226,7 @@ def get_all_depts():
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    c.execute("SELECT * FROM departments")
+    c.execute("SELECT * FROM departments ORDER BY name COLLATE NOCASE")
     all_depts = [dict(row) for row in c.fetchall()]
 
     conn.close()
@@ -251,7 +246,10 @@ def get_subdepts(name):
     conn = database.get_connection()
     c = conn.cursor()
 
-    c.execute("SELECT * FROM departments WHERE parent_id = ?", (dept_id,))
+    c.execute(
+        "SELECT * FROM departments WHERE parent_id = ? ORDER BY name COLLATE NOCASE",
+        (dept_id,),
+    )
     subdepts = [dict(row) for row in c.fetchall()]
     
     conn.close()
@@ -264,7 +262,10 @@ def get_subdepts_by_id(dept_id):
     conn = database.get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT * FROM departments WHERE parent_id = ?", (dept_id,))
+    c.execute(
+        "SELECT * FROM departments WHERE parent_id = ? ORDER BY name COLLATE NOCASE",
+        (dept_id,),
+    )
     subdepts = [dict(row) for row in c.fetchall()]
     conn.close()
     return subdepts

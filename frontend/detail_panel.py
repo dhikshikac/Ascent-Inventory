@@ -9,8 +9,8 @@ import backend.computers as computers
 import backend.departments as departments
 import backend.instruments as instruments
 from frontend.widgets import (
-        primary_button, ghost_button, danger_button, back_button,
-        section_label, field_pair, h_separator, empty_state
+    primary_button, ghost_button, danger_button, back_button,
+    section_label, field_pair, h_separator, computer_label,
 )
 
 from frontend.dialogs import EditEmployeeDialog, AddComputerDialog, EditComputerDialog 
@@ -340,7 +340,7 @@ class InventoryDetailView(QWidget):
     def _build_computer(self, computer: dict):
         dept_id = computer.get("dept_id") or computer.get("lab_id")
         dept_name = departments.get_name(dept_id)
-        title = _computer_label(computer)
+        title = computer_label(computer)
         outer = self._base_content(title, f"COMP-{computer.get('id')}  ·  {dept_name}")
 
         scroll, body = self._detail_body()
@@ -435,11 +435,3 @@ class InventoryDetailView(QWidget):
             self._record_id = None
             self.data_changed.emit()
             self.back_clicked.emit()
-
-
-def _computer_label(computer: dict) -> str:
-    for key in ("pc_model", "monitor_model", "os_version"):
-        value = computer.get(key)
-        if value:
-            return value
-    return f"Computer {computer.get('id')}"

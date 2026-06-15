@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QStackedWidget, QApplication
 )
 
-from frontend.theme import load_stylesheet, WINDOW_MAX_HEIGHT, WINDOW_MIN_WIDTH
+from frontend.theme import load_stylesheet, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH
 from frontend.header import HeaderBar
 from frontend.sidebar import Sidebar
 from frontend.employee_table import EmployeeListView
@@ -22,7 +22,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Ascent — Inventory")
-        self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MAX_HEIGHT)
+        self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
         self.resize(1200, 760)
         self.setStyleSheet(load_stylesheet())
 
@@ -46,10 +46,9 @@ class MainWindow(QMainWindow):
         # Left: sidebar
         self._sidebar = Sidebar()
         self._sidebar.dept_selected.connect(self._on_dept_selected)
-        
-        # ── CONNECT THE ALL EMPLOYEES SIGNAL HERE ───────────────────────
         self._sidebar.all_employees_selected.connect(self._on_all_employees_selected)
-        
+        self._sidebar.width_changed.connect(self._header.set_brand_width)
+
         body.addWidget(self._sidebar)
 
         # Right: stacked widget — list view OR detail view
@@ -79,28 +78,15 @@ class MainWindow(QMainWindow):
         root.addLayout(body, 1)
 
         self._sidebar.refresh()
-        self._current_dept_id: int | None = None
-        self._current_dept_name: str = ""
 
     # ── Slots ─────────────────────────────────────────────────────────────
 
     def _on_all_employees_selected(self):
-        """Fires when clicking 'All Employees' tab on the sidebar."""
-        self._current_dept_id = None
-        self._current_dept_name = ""
         self._stack.setCurrentIndex(_LIST_IDX)
         self._header.clear_search()
-        
-        # Ensure your EmployeeListView file implements this method to reload data safely
-        if hasattr(self._list_view, "set_all_employees"):
-            self._list_view.set_all_employees()
-        else:
-            # Fallback if your table class uses a different method name
-            self._list_view.clear_department()
+        self._list_view.set_all_employees()
 
     def _on_dept_selected(self, dept_id: int, dept_name: str):
-        self._current_dept_id = dept_id
-        self._current_dept_name = dept_name
         self._stack.setCurrentIndex(_LIST_IDX)
         self._header.clear_search()
         self._list_view.set_department(dept_id, dept_name)
@@ -125,8 +111,6 @@ class MainWindow(QMainWindow):
         self._sidebar.refresh()
 
     def _on_department_deleted(self):
-        self._current_dept_id = None
-        self._current_dept_name = ""
         self._sidebar.clear_selection()
         self._sidebar.refresh()
         self._list_view.clear_department()
@@ -144,10 +128,8 @@ class MainWindow(QMainWindow):
 
 def run():
     import backend.database as database
-    #from seed import seed
 
     database.init()
-    #seed()
 
     app = QApplication(sys.argv)
     app.setApplicationName("Ascent Inventory")

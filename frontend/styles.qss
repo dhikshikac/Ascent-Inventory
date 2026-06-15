@@ -36,6 +36,7 @@ QTreeWidget {
     background-color: %SIDEBAR_BKG%;
     border: none;
     outline: none;
+    show-decoration-selected: 0;
 }
 QTreeWidget::viewport {
     background-color: %SIDEBAR_BKG%;
@@ -45,33 +46,39 @@ QTreeWidget::item {
     border-radius: 5px;
     color: %TEXT_PRIMARY%;
     background-color: transparent;
+    border: none;
 }
-QTreeWidget::item:hover {
-    background-color: %ROW_HOVER%;
-}
-QTreeWidget::item:selected {
-    background-color: %ROW_SELECTED%;
-    color: %TEXT_ON_DARK%;
-    font-weight: 600;
+QTreeWidget::item:hover,
+QTreeWidget::item:selected,
+QTreeWidget::item:selected:active,
+QTreeWidget::item:selected:!active {
+    background-color: transparent;
+    border: none;
 }
 QTreeWidget::branch {
     background: transparent;
     border-image: none;
     image: none;
 }
+QTreeWidget::branch:selected,
+QTreeWidget::branch:selected:active,
+QTreeWidget::branch:selected:!active,
+QTreeWidget::branch:hover {
+    background: transparent;
+    border: none;
+    border-image: none;
+    image: none;
+}
 
 /* ── Header bar ── */
 #HeaderBar {
-    background-color: %SIDEBAR_BKG%;
-    min-height: 48px;
-    max-height: 48px;
+    background-color: %BKG%;
+}
+#BrandArea {
+    background-color: %BKG%;
 }
 #AppTitle {
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: %TEXT_PRIMARY%;
-    padding-left: 20px;
+    background-color: %BKG%;
 }
 #HeaderSep {
     color: %TEXT_SECONDARY%;
