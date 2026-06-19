@@ -4,10 +4,12 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
-import backend.employees as employees
-import backend.computers as computers
-import backend.departments as departments
-import backend.instruments as instruments
+import frontend.services.employees as employees
+import frontend.services.computers as computers
+import frontend.services.departments as departments
+import frontend.services.instruments as instruments
+from frontend import session
+from frontend.api_client import ApiError
 from frontend.widgets import (
     primary_button, ghost_button, danger_button, back_button,
     section_label, field_pair, h_separator, computer_label,
@@ -57,6 +59,9 @@ class ComputerCard(QFrame):
         del_btn.setMinimumHeight(36)
         del_btn.clicked.connect(lambda: self.delete_requested.emit(self._computer_id))
         hdr.addWidget(del_btn)
+        if not session.is_admin():
+            edit_btn.hide()
+            del_btn.hide()
         layout.addLayout(hdr)
         layout.addWidget(h_separator())
 
@@ -154,15 +159,20 @@ class EmployeeDetailView(QWidget):
         edit_btn = ghost_button("Edit Profile")
         edit_btn.clicked.connect(self._edit)
         btn_row.addWidget(edit_btn)
- 
+
         add_dev_btn = primary_button("+ Add Computer")
         add_dev_btn.setMinimumWidth(140)
         add_dev_btn.clicked.connect(self._add_device)
         btn_row.addWidget(add_dev_btn)
- 
+
         del_btn = danger_button("Delete Employee")
         del_btn.clicked.connect(self._delete)
         btn_row.addWidget(del_btn)
+
+        if not session.is_admin():
+            edit_btn.hide()
+            add_dev_btn.hide()
+            del_btn.hide()
  
         hl.addLayout(btn_row)
         outer.addWidget(header)
@@ -232,7 +242,11 @@ class EmployeeDetailView(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            employees.delete_employee(self._employee_id)
+            try:
+                employees.delete_employee(self._employee_id)
+            except ApiError as exc:
+                QMessageBox.warning(self, "Delete Employee", exc.message)
+                return
             self._employee_id = None
             self.data_changed.emit()
             self.back_clicked.emit()
@@ -253,7 +267,11 @@ class EmployeeDetailView(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            computers.delete_computer(comp_id)
+            try:
+                computers.delete_computer(comp_id)
+            except ApiError as exc:
+                QMessageBox.warning(self, "Delete Device", exc.message)
+                return
             self._rebuild()
 
 
@@ -321,7 +339,7 @@ class InventoryDetailView(QWidget):
         meta_lbl.setObjectName("DetailId")
         hl.addWidget(meta_lbl)
 
-        # ── Shared Action Row ─────────────────────────────────────────
+        #Shared Action Row 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
         btn_row.setContentsMargins(0, 12, 0, 0)
@@ -332,6 +350,8 @@ class InventoryDetailView(QWidget):
         self._del_btn = danger_button(btn_text)
         self._del_btn.clicked.connect(self._on_delete_asset_clicked)
         btn_row.addWidget(self._del_btn)
+        if not session.is_admin():
+            self._del_btn.hide()
 
         hl.addLayout(btn_row)
         outer.addWidget(header)
@@ -427,11 +447,15 @@ class InventoryDetailView(QWidget):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            if self._kind == "Computer":
-                computers.delete_computer(self._record_id)
-            elif self._kind == "Instrument":
-                instruments.delete_instrument(self._record_id)
-                
+            try:
+                if self._kind == "Computer":
+                    computers.delete_computer(self._record_id)
+                elif self._kind == "Instrument":
+                    instruments.delete_instrument(self._record_id)
+            except ApiError as exc:
+                QMessageBox.warning(self, f"Delete {self._kind}", exc.message)
+                return
+
             self._record_id = None
             self.data_changed.emit()
             self.back_clicked.emit()

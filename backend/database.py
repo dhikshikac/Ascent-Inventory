@@ -81,6 +81,14 @@ def init():
         )
     """)
 
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS app_users (
+        firebase_uid TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'viewer'
+    )
+    """)
+
     conn.commit()
     conn.close()
 

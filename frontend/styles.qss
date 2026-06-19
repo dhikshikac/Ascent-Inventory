@@ -30,6 +30,18 @@ QWidget {
 #SidebarFooter QWidget {
     background-color: %SIDEBAR_BKG%;
 }
+#SidebarAccountRole {
+    background-color: transparent;
+    color: %TEXT_PRIMARY%;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+#SidebarFooter QPushButton#DangerBtn {
+    padding: 4px 10px;
+    font-size: 12px;
+    min-height: 0;
+}
 
 /* ── Dept tree ── */
 QTreeWidget {
@@ -157,10 +169,6 @@ QHeaderView::section {
 QHeaderView::section {
     text-align: left;
     padding-left: 8px;
-}
-
-QTableWidget {
-    qproperty-alignment: 'AlignLeft | AlignVCenter';
 }
 
 /* ── Primary button ── */

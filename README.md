@@ -40,3 +40,29 @@ Flow 3 - Editing/Deleting an employee:
 Find employee 
 Edit information or delete the employee 
 Update database
+
+## Running with authentication
+
+1. Install dependencies: `pip install -r requirements.txt`
+2. Configure Firebase in `config/firebase_config.py` and place `firebase-service-account.json` in the project root.
+3. Create a user in Firebase Console → Authentication → Users.
+
+**Run the app (API starts automatically):**
+```bash
+cd Ascent-Inventory
+python3 main.py
+```
+
+The desktop app launches a local API in the background on `API_BASE_URL` (default `http://127.0.0.1:8000`). You do not need a second terminal.
+
+To run the API alone for development:
+```bash
+uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+After your first login, promote yourself to admin:
+```bash
+sqlite3 backend/inventory.db "UPDATE app_users SET role = 'admin' WHERE email = 'you@company.com';"
+```
+
+Roles: `viewer` (read-only) and `admin` (full access).
