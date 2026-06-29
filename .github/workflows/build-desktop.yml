@@ -20,12 +20,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Validate secrets
+        shell: bash
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: |
+          if [ -z "$FIREBASE_API_KEY" ]; then
+            echo "::error::Missing FIREBASE_API_KEY. Add it in GitHub → Settings → Secrets and variables → Actions"
+            exit 1
+          fi
 
       - name: Install dependencies
         run: |
@@ -35,8 +43,8 @@ jobs:
       - name: Build desktop app
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-          FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_AUTH_DOMAIN: ascent-inventory.firebaseapp.com
+          FIREBASE_PROJECT_ID: ascent-inventory
           API_BASE_URL: https://ascent-inventory.onrender.com
         run: python scripts/build_desktop.py ${{ matrix.zip_flag }}
 
