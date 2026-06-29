@@ -1,18 +1,13 @@
-import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow
-from frontend.home import HomeScreen
-import backend.database as database
+# main.py — entry point for Ascent Inventory desktop app
+from frontend.main_window import run
 
-database.init()
+if __name__ == "__main__":
+    run()
 
-app = QApplication(sys.argv)
+#run this to start api port: uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000
+#then run main
 
-window = QMainWindow()
-window.setWindowTitle("Ascent Inventory")
-window.resize(1000, 700)
-
-home = HomeScreen()
-window.setCentralWidget(home)
-
-window.show()
-sys.exit(app.exec())
+#to make someone an admin (local SQLite):
+# sqlite3 backend/inventory.db "UPDATE app_users SET role = 'admin' WHERE email = 'their@email.com';"
+# hosted Postgres (Neon SQL editor):
+# UPDATE app_users SET role = 'admin' WHERE email = 'their@email.com';

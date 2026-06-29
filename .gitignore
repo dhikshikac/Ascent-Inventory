@@ -1,0 +1,10 @@
+config/firebase_config.py
+firebase-service-account.json
+.env
+dist/
+build/
+Ascent Inventory.spec
+media/ascent-logo.ico
+media/app-icon.ico
+media/app-icon.icns
+media/app-icon.iconset/

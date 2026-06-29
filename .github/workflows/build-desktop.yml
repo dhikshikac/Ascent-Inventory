@@ -1,0 +1,70 @@
+name: Build Desktop App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            zip_flag: --zip
+          - os: windows-latest
+            zip_flag: --zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate secrets
+        shell: bash
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: |
+          if [ -z "$FIREBASE_API_KEY" ]; then
+            echo "::error::Missing FIREBASE_API_KEY. Add it in GitHub → Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Build desktop app
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ascent-inventory.firebaseapp.com
+          FIREBASE_PROJECT_ID: ascent-inventory
+          API_BASE_URL: https://ascent-inventory.onrender.com
+        run: python scripts/build_desktop.py ${{ matrix.zip_flag }}
+
+      - name: Upload macOS artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ascent-Inventory-macOS
+          path: |
+            dist/Ascent Inventory.app
+            dist/Ascent-Inventory-macOS.zip
+
+      - name: Upload Windows artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ascent-Inventory-Windows
+          path: |
+            dist/Ascent Inventory/**
+            dist/Ascent-Inventory-Windows.zip
