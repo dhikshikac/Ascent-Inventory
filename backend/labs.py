@@ -1,4 +1,3 @@
-import sqlite3
 from backend import database
 from backend import departments
 

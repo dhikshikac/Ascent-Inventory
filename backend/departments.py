@@ -1,4 +1,3 @@
-import sqlite3
 from backend import database
 
 """
@@ -34,7 +33,7 @@ def dept_exists(name):
     conn = database.get_connection()
     c = conn.cursor()
     
-    c.execute("SELECT 1 FROM departments WHERE name = ?", (name,))
+    database.execute(c, f"SELECT 1 FROM departments WHERE name = {database.ph()}", (name,))
     
     result = c.fetchone()
     conn.close()
@@ -45,14 +44,13 @@ def get_dept(name):
     Returns a dict of department information or None if department is not found.
     """
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
     
-    c.execute("SELECT * FROM departments WHERE name = ?", (name,))
+    database.execute(c, f"SELECT * FROM departments WHERE name = {database.ph()}", (name,))
     
     result = c.fetchone()
     conn.close()
-    return dict(result) if result else None
+    return database.row_dict(result)
 
 def get_name(dept_id):
     """
@@ -63,11 +61,11 @@ def get_name(dept_id):
     conn = database.get_connection()
     c = conn.cursor()
     
-    c.execute("SELECT name FROM departments WHERE id = ?", (dept_id,))
+    database.execute(c, f"SELECT name FROM departments WHERE id = {database.ph()}", (dept_id,))
     
     result = c.fetchone()
     conn.close()
-    return result[0] if result else "Unassigned"
+    return database.scalar(result) if result else "Unassigned"
 
 def _children_map(all_depts: list[dict]) -> dict[int, list[int]]:
     children_map: dict[int, list[int]] = {}
@@ -95,10 +93,9 @@ def get_descendant_ids(dept_id, include_self=True):
     Returns department ids under dept_id, including nested sub-departments.
     """
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT id, parent_id FROM departments")
-    all_depts = [dict(row) for row in c.fetchall()]
+    database.execute(c, "SELECT id, parent_id FROM departments")
+    all_depts = [database.row_dict(row) for row in c.fetchall()]
     conn.close()
 
     ids = _collect_descendant_ids(dept_id, _children_map(all_depts))
@@ -110,37 +107,50 @@ def delete_dept_by_id(dept_id):
     employee computers, shared/lab computers, and instruments.
     """
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    c.execute("SELECT 1 FROM departments WHERE id = ?", (dept_id,))
+    database.execute(c, f"SELECT 1 FROM departments WHERE id = {database.ph()}", (dept_id,))
     if c.fetchone() is None:
         conn.close()
         return False
 
-    c.execute("SELECT id, parent_id FROM departments")
-    all_depts = [dict(row) for row in c.fetchall()]
+    database.execute(c, "SELECT id, parent_id FROM departments")
+    all_depts = [database.row_dict(row) for row in c.fetchall()]
     dept_ids = _collect_descendant_ids(dept_id, _children_map(all_depts))
-    placeholders = ",".join("?" for _ in dept_ids)
+    placeholders = database.phs(len(dept_ids))
 
-    c.execute(f"SELECT employee_id FROM employees WHERE dept_id IN ({placeholders})", dept_ids)
+    database.execute(
+        c,
+        f"SELECT employee_id FROM employees WHERE dept_id IN ({placeholders})",
+        dept_ids,
+    )
     employee_ids = [row["employee_id"] for row in c.fetchall()]
     if employee_ids:
-        employee_placeholders = ",".join("?" for _ in employee_ids)
-        c.execute(
+        employee_placeholders = database.phs(len(employee_ids))
+        database.execute(
+            c,
             f"DELETE FROM computers WHERE employee_id IN ({employee_placeholders})",
             employee_ids,
         )
 
-    c.execute(
+    database.execute(
+        c,
         f"DELETE FROM computers WHERE dept_id IN ({placeholders}) OR lab_id IN ({placeholders})",
         dept_ids + dept_ids,
     )
-    c.execute(f"DELETE FROM instruments WHERE lab_id IN ({placeholders})", dept_ids)
-    c.execute(f"DELETE FROM employees WHERE dept_id IN ({placeholders})", dept_ids)
+    database.execute(
+        c,
+        f"DELETE FROM instruments WHERE lab_id IN ({placeholders})",
+        dept_ids,
+    )
+    database.execute(
+        c,
+        f"DELETE FROM employees WHERE dept_id IN ({placeholders})",
+        dept_ids,
+    )
 
     for current_id in reversed(dept_ids):
-        c.execute("DELETE FROM departments WHERE id = ?", (current_id,))
+        database.execute(c, f"DELETE FROM departments WHERE id = {database.ph()}", (current_id,))
 
     conn.commit()
     conn.close()
@@ -171,28 +181,48 @@ def delete_dept(name, on_delete_dept=None):
     conn = database.get_connection()
     c = conn.cursor()
 
-    c.execute("SELECT COUNT(*) FROM departments WHERE parent_id = ?", (dept_id,))
+    database.execute(
+        c,
+        f"SELECT COUNT(*) FROM departments WHERE parent_id = {database.ph()}",
+        (dept_id,),
+    )
 
-    if c.fetchone()[0] > 0:
+    if database.scalar(c.fetchone()) > 0:
         conn.close()
         raise ValueError(f"Cannot delete '{name}' department. It still has existing sub-departments.")
     
-    c.execute("SELECT COUNT(*) FROM employees WHERE dept_id = ?", (dept_id,))
-    has_employees = c.fetchone()[0] > 0
+    database.execute(
+        c,
+        f"SELECT COUNT(*) FROM employees WHERE dept_id = {database.ph()}",
+        (dept_id,),
+    )
+    has_employees = database.scalar(c.fetchone()) > 0
 
     if has_employees:
         if parent_id is not None:
-            c.execute("UPDATE employees SET dept_id = ? WHERE dept_id = ?", (parent_id, dept_id))
+            database.execute(
+                c,
+                f"UPDATE employees SET dept_id = {database.ph()} WHERE dept_id = {database.ph()}",
+                (parent_id, dept_id),
+            )
         else:
             if on_delete_dept == "delete":
-                c.execute("DELETE FROM employees WHERE dept_id = ?", (dept_id,))
+                database.execute(
+                    c,
+                    f"DELETE FROM employees WHERE dept_id = {database.ph()}",
+                    (dept_id,),
+                )
             elif on_delete_dept == "unassign":
-                c.execute("UPDATE employees SET dept_id = NULL WHERE dept_id = ?", (dept_id,))
+                database.execute(
+                    c,
+                    f"UPDATE employees SET dept_id = NULL WHERE dept_id = {database.ph()}",
+                    (dept_id,),
+                )
             else:
                 conn.close()
                 raise ValueError("Cannot determine action for employees. Select either 'delete' or 'unassign'.")
     
-    c.execute("DELETE FROM departments WHERE id = ?", (dept_id,))
+    database.execute(c, f"DELETE FROM departments WHERE id = {database.ph()}", (dept_id,))
 
     conn.commit()
     conn.close()
@@ -212,7 +242,11 @@ def edit_dept(name, new_name):
     conn = database.get_connection()
     c = conn.cursor()
     
-    c.execute("UPDATE departments SET name = ? WHERE name = ?", (new_name, name))
+    database.execute(
+        c,
+        f"UPDATE departments SET name = {database.ph()} WHERE name = {database.ph()}",
+        (new_name, name),
+    )
     
     conn.commit()
     conn.close()
@@ -223,11 +257,13 @@ def get_all_depts():
     Returns a dict of all departments in the database.
     """
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    c.execute("SELECT * FROM departments ORDER BY name COLLATE NOCASE")
-    all_depts = [dict(row) for row in c.fetchall()]
+    database.execute(
+        c,
+        f"SELECT * FROM departments ORDER BY {database.order_nocase('name')}",
+    )
+    all_depts = [database.row_dict(row) for row in c.fetchall()]
 
     conn.close()
     return all_depts
@@ -246,11 +282,13 @@ def get_subdepts(name):
     conn = database.get_connection()
     c = conn.cursor()
 
-    c.execute(
-        "SELECT * FROM departments WHERE parent_id = ? ORDER BY name COLLATE NOCASE",
+    database.execute(
+        c,
+        f"SELECT * FROM departments WHERE parent_id = {database.ph()} "
+        f"ORDER BY {database.order_nocase('name')}",
         (dept_id,),
     )
-    subdepts = [dict(row) for row in c.fetchall()]
+    subdepts = [database.row_dict(row) for row in c.fetchall()]
     
     conn.close()
     return subdepts
@@ -260,12 +298,13 @@ def get_subdepts_by_id(dept_id):
     Returns a list of sub-departments by parent dept_id (integer).
     """
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute(
-        "SELECT * FROM departments WHERE parent_id = ? ORDER BY name COLLATE NOCASE",
+    database.execute(
+        c,
+        f"SELECT * FROM departments WHERE parent_id = {database.ph()} "
+        f"ORDER BY {database.order_nocase('name')}",
         (dept_id,),
     )
-    subdepts = [dict(row) for row in c.fetchall()]
+    subdepts = [database.row_dict(row) for row in c.fetchall()]
     conn.close()
     return subdepts

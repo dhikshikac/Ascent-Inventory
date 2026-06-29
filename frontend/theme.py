@@ -1,4 +1,4 @@
-import os
+from frontend.resources import asset_path
 
 # Color palette
 BKG = "#F9FAFB"
@@ -21,7 +21,7 @@ SIDEBAR_MAX_WIDTH = 400
 WINDOW_MIN_WIDTH = 900
 WINDOW_MIN_HEIGHT = 600
 
-_QSS_PATH = os.path.join(os.path.dirname(__file__), "styles.qss")
+_QSS_PATH = asset_path("frontend", "styles.qss")
 
 _TOKENS = {
     "BKG":            BKG,

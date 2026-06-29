@@ -15,6 +15,7 @@ from frontend.theme import (
     SIDEBAR_BKG, ROW_SELECTED, ROW_HOVER, TEXT_PRIMARY, TEXT_ON_DARK,
 )
 from frontend.widgets import primary_button, danger_button, h_separator
+from frontend.resources import asset_path
 
 _DEPT_NAME_ROLE = Qt.ItemDataRole.UserRole.value + 1
 _DEPT_ID_ROLE = Qt.ItemDataRole.UserRole
@@ -122,8 +123,8 @@ class DeptTree(QTreeWidget):
         self.setRootIsDecorated(False)
         self.itemClicked.connect(self._on_click)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._icon_down = QIcon("media/down.svg")
-        self._icon_up = QIcon("media/up.svg")
+        self._icon_down = QIcon(asset_path("media", "down.svg"))
+        self._icon_up = QIcon(asset_path("media", "up.svg"))
         self.setItemDelegate(_DeptRowDelegate(self._icon_down, self._icon_up, self))
         self._expanded_ids: set[int] = set()
 

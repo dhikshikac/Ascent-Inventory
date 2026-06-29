@@ -1,4 +1,3 @@
-import sqlite3
 from backend import database
 
 employee_info = {
@@ -33,7 +32,11 @@ def add_employee(employee_id, dept_id, first_name, last_name, **kwargs):
 def employee_exists(employee_id):
     conn = database.get_connection()
     c = conn.cursor()
-    c.execute("SELECT 1 FROM employees WHERE employee_id = ?", (employee_id,))
+    database.execute(
+        c,
+        f"SELECT 1 FROM employees WHERE employee_id = {database.ph()}",
+        (employee_id,),
+    )
     result = c.fetchone()
     conn.close()
     return result is not None
@@ -42,20 +45,31 @@ def get_employee(employee_id):
     if not employee_exists(employee_id):
         return None
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT * FROM employees WHERE employee_id = ?", (employee_id,))
+    database.execute(
+        c,
+        f"SELECT * FROM employees WHERE employee_id = {database.ph()}",
+        (employee_id,),
+    )
     result = c.fetchone()
     conn.close()
-    return dict(result) if result else None
+    return database.row_dict(result)
 
 def delete_employee(employee_id):
     if not employee_exists(employee_id):
         return False
     conn = database.get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM computers WHERE employee_id = ?", (employee_id,))
-    c.execute("DELETE FROM employees WHERE employee_id = ?", (employee_id,))
+    database.execute(
+        c,
+        f"DELETE FROM computers WHERE employee_id = {database.ph()}",
+        (employee_id,),
+    )
+    database.execute(
+        c,
+        f"DELETE FROM employees WHERE employee_id = {database.ph()}",
+        (employee_id,),
+    )
     conn.commit()
     conn.close()  
     return True
@@ -67,11 +81,15 @@ def edit_employee(employee_id, **kwargs):
     updates = {k: v for k, v in kwargs.items() if k in editable_fields}
     if not updates:
         return False
-    set_values = ", ".join(f"{field} = ?" for field in updates)
+    set_values = ", ".join(f"{field} = {database.ph()}" for field in updates)
     values = list(updates.values()) + [employee_id]
     conn = database.get_connection()
     c = conn.cursor()
-    c.execute(f"UPDATE employees SET {set_values} WHERE employee_id = ?", values)
+    database.execute(
+        c,
+        f"UPDATE employees SET {set_values} WHERE employee_id = {database.ph()}",
+        values,
+    )
     conn.commit()
     conn.close()
     return True
@@ -79,28 +97,35 @@ def edit_employee(employee_id, **kwargs):
 def get_all_employees():
     """Return all employees across all departments, sorted alphabetically by last name then first name."""
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("""
+    database.execute(
+        c,
+        f"""
         SELECT * FROM employees
-        ORDER BY last_name COLLATE NOCASE, first_name COLLATE NOCASE, employee_id
-    """)
-    all_employees = [dict(row) for row in c.fetchall()]
+        ORDER BY {database.order_nocase('last_name')},
+                 {database.order_nocase('first_name')},
+                 employee_id
+        """,
+    )
+    all_employees = [database.row_dict(row) for row in c.fetchall()]
     conn.close()
     return all_employees
 
 def get_all_dept_employees(dept_id):
     dept_ids = _dept_tree_ids(dept_id)
-    placeholders = ",".join("?" for _ in dept_ids)
+    placeholders = database.phs(len(dept_ids))
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute(f"""
+    database.execute(
+        c,
+        f"""
         SELECT * FROM employees
         WHERE dept_id IN ({placeholders})
         ORDER BY last_name, first_name, employee_id
-    """, dept_ids)
-    all_dept_employees = [dict(row) for row in c.fetchall()]
+        """,
+        dept_ids,
+    )
+    all_dept_employees = [database.row_dict(row) for row in c.fetchall()]
     conn.close()
     return all_dept_employees
 
@@ -108,4 +133,3 @@ def _dept_tree_ids(dept_id):
     # Local import avoids a module-level cycle with backend.departments.
     import backend.departments as departments
     return departments.get_descendant_ids(dept_id)
-
