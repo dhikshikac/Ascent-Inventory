@@ -3,18 +3,20 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap
 
 from frontend.theme import SIDEBAR_MIN_WIDTH, TEXT_SECONDARY
+from frontend.resources import asset_path
 
 
 class HeaderBar(QWidget):
     search_changed = pyqtSignal(str)
     _LOGO_V_MARGIN = 12
     _LOGO_H_MARGIN = 12
+    _MAX_LOGO_HEIGHT = 52
 
     def __init__(self, context: str = "", show_search: bool = True, parent=None):
         super().__init__(parent)
         self.setObjectName("HeaderBar")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self._source_pixmap = QPixmap("media/ascent-logo.png")
+        self._source_pixmap = self._load_logo()
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 16, 0)
@@ -56,6 +58,13 @@ class HeaderBar(QWidget):
             self._search.textChanged.connect(self.search_changed)
             layout.addWidget(self._search)
 
+    def _load_logo(self) -> QPixmap:
+        path = asset_path("media", "ascent-logo.png")
+        pixmap = QPixmap(path)
+        if pixmap.isNull():
+            print(f"Warning: header logo not found at {path}")
+        return pixmap
+
     def clear_search(self):
         if hasattr(self, "_search"):
             self._search.clear()
@@ -67,8 +76,14 @@ class HeaderBar(QWidget):
     def set_brand_width(self, width: int):
         self._brand.setFixedWidth(width)
         inner_width = max(1, width - 2 * self._LOGO_H_MARGIN)
-        scaled = self._source_pixmap.scaledToWidth(
-            inner_width, Qt.TransformationMode.SmoothTransformation
+        if self._source_pixmap.isNull():
+            self.setFixedHeight(self._MAX_LOGO_HEIGHT + 2 * self._LOGO_V_MARGIN)
+            return
+        scaled = self._source_pixmap.scaled(
+            inner_width,
+            self._MAX_LOGO_HEIGHT,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
         )
         self._title.setPixmap(scaled)
         self._title.setFixedSize(scaled.size())
