@@ -3,8 +3,6 @@ from firebase_admin import auth
 from backend.firebase_app import init_firebase
 from backend import database
 
-import sqlite3
-
 init_firebase()
 
 VALID_ROLES = frozenset({"viewer", "admin"})
@@ -26,6 +24,7 @@ def get_current_user(authorization: str = Header(...)):
         raise HTTPException(403, "Invalid role assigned to user")
     return {"uid": uid, "email": email, "role": role}
 
+
 def require_role(*roles):
     def checker(user=Depends(get_current_user)):
         if user["role"] not in roles:
@@ -33,19 +32,19 @@ def require_role(*roles):
         return user
     return checker
 
+
 def _get_or_create_user(uid: str, email: str) -> str:
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    c.execute("SELECT role FROM app_users WHERE firebase_uid = ?", (uid,))
+    database.execute(c, "SELECT role FROM app_users WHERE firebase_uid = ?", (uid,))
     row = c.fetchone()
     if row:
         conn.close()
         return row["role"]
 
-    # First login — create row with default role
-    c.execute(
+    database.execute(
+        c,
         "INSERT INTO app_users (firebase_uid, email, role) VALUES (?, ?, ?)",
         (uid, email, "viewer"),
     )

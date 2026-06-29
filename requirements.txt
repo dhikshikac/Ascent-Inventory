@@ -5,3 +5,5 @@ firebase-admin
 requests
 pydantic
 python-multipart
+psycopg[binary]
+python-dotenv

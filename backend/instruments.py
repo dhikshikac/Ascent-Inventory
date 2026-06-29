@@ -1,4 +1,3 @@
-import sqlite3
 from backend import database
 
 instrument_template = {
@@ -18,48 +17,53 @@ def add_instrument(lab_id, model_name, serial_number=None, notes=None):
 
 def get_instruments_by_lab(lab_id):
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT * FROM instruments WHERE lab_id = ?", (lab_id,))
-    results = [dict(row) for row in c.fetchall()]
+    database.execute(c, f"SELECT * FROM instruments WHERE lab_id = {database.ph()}", (lab_id,))
+    results = [database.row_dict(row) for row in c.fetchall()]
     conn.close()
     return results
 
 def get_instruments_by_labs(lab_ids):
     if not lab_ids:
         return []
-    placeholders = ",".join("?" for _ in lab_ids)
+    placeholders = database.phs(len(lab_ids))
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute(f"""
+    database.execute(
+        c,
+        f"""
         SELECT * FROM instruments
         WHERE lab_id IN ({placeholders})
         ORDER BY model_name, id
-    """, lab_ids)
-    results = [dict(row) for row in c.fetchall()]
+        """,
+        lab_ids,
+    )
+    results = [database.row_dict(row) for row in c.fetchall()]
     conn.close()
     return results
 
 def get_instrument(instrument_id):
     conn = database.get_connection()
-    conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT * FROM instruments WHERE id = ?", (instrument_id,))
+    database.execute(c, f"SELECT * FROM instruments WHERE id = {database.ph()}", (instrument_id,))
     result = c.fetchone()
     conn.close()
-    return dict(result) if result else None
+    return database.row_dict(result)
 
 def edit_instrument(instrument_id, **kwargs):
     editable = {"model_name", "serial_number", "notes"}
     updates = {k: v for k, v in kwargs.items() if k in editable}
     if not updates:
         return False
-    set_values = ", ".join(f"{field} = ?" for field in updates)
+    set_values = ", ".join(f"{field} = {database.ph()}" for field in updates)
     values = list(updates.values()) + [instrument_id]
     conn = database.get_connection()
     c = conn.cursor()
-    c.execute(f"UPDATE instruments SET {set_values} WHERE id = ?", values)
+    database.execute(
+        c,
+        f"UPDATE instruments SET {set_values} WHERE id = {database.ph()}",
+        values,
+    )
     conn.commit()
     conn.close()
     return True
@@ -67,7 +71,7 @@ def edit_instrument(instrument_id, **kwargs):
 def delete_instrument(instrument_id):
     conn = database.get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM instruments WHERE id = ?", (instrument_id,))
+    database.execute(c, f"DELETE FROM instruments WHERE id = {database.ph()}", (instrument_id,))
     conn.commit()
     conn.close()
     return True

@@ -1,2 +1,3 @@
 config/firebase_config.py
 firebase-service-account.json
+.env
