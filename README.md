@@ -10,6 +10,17 @@ A desktop inventory app for tracking employees, departments, IT equipment, and l
 - Search and browse from a single window
 - Sign-in required; role-based access
 
+## How it works
+
+Ascent Inventory uses a shared backend so every authorized computer sees the same data.
+
+- The **desktop app** is what you open on each computer.
+- The **hosted API** (FastAPI on Render) handles all reads and writes.
+- The **database** (PostgreSQL on Neon) stores departments, employees, computers, and instruments in one place.
+- **Firebase Authentication** controls who can sign in.
+
+When someone edits inventory on one machine, everyone else sees those changes the next time they load or navigate in the app. There is no separate local database on each desktop in production.
+
 ## Roles
 
 | Role   | Access                                       |
