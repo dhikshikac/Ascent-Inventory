@@ -23,6 +23,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config" / "firebase_config.py"
 DIST = ROOT / "dist"
@@ -57,7 +63,8 @@ FIREBASE_API_KEY = os.environ.get("FIREBASE_API_KEY", "{api_key}")
 FIREBASE_AUTH_DOMAIN = os.environ.get("FIREBASE_AUTH_DOMAIN", "{auth_domain}")
 FIREBASE_PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID", "{project_id}")
 API_BASE_URL = os.environ.get("API_BASE_URL", "{api_url}")
-'''
+''',
+        encoding="utf-8",
     )
     print(f"Wrote {CONFIG} from environment variables.")
 
@@ -178,7 +185,8 @@ If macOS says the app is "damaged" or won't open:
      xattr -cr "/Applications/Ascent Inventory.app"
 
 3. Sign in with your Firebase email and password.
-"""
+""",
+        encoding="utf-8",
     )
 
 
