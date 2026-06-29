@@ -10,17 +10,6 @@ A desktop inventory app for tracking employees, departments, IT equipment, and l
 - Search and browse from a single window
 - Sign-in required; role-based access
 
-## Architecture
-
-```mermaid
-flowchart LR
-  App[Ascent Inventory app] --> API[Hosted API]
-  API --> DB[(Shared database)]
-  App -.-> Auth[Sign-in]
-```
-
-All users see the same inventory; changes sync through the hosted backend.
-
 ## Roles
 
 | Role   | Access                                       |
