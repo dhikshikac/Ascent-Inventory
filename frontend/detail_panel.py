@@ -96,7 +96,6 @@ class ComputerCard(QFrame):
             return "WEBCAM"
         return "DEVICE"
  
- 
 class EmployeeDetailView(QWidget):
 
     back_clicked = pyqtSignal()
@@ -176,7 +175,7 @@ class EmployeeDetailView(QWidget):
  
         hl.addLayout(btn_row)
         outer.addWidget(header)
- 
+
         if emp.get("notes"):
             notes_bar = QWidget()
             notes_bar.setObjectName("EmployeeNotes")

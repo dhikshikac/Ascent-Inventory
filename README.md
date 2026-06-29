@@ -1,68 +1,86 @@
-# Ascent-Inventory
+# Ascent Inventory
 
-General Requirements:
+A desktop inventory management app for tracking employees, departments, IT equipment, and lab instruments. Built with **PyQt6** for the UI and **FastAPI** for a local API backed by **SQLite**.
 
-The master database starts completely empty
-Have different departments 
-People are categorized into these; you should be able to view the depts, select one, and a (selectable) list of all the ppl in it should show up.
+## Overview
 
-Each person’s thing should: 
-Employee ID
-Department + Sub Department
-Monitor model / PC model 
-Ram
-Storage Space
-OS Version 
-Webcam Specs 
-Desk Phone Model 
+The master database starts empty. You organize people into departments (and sub-departments), attach hardware details to each employee, and browse or search the inventory from a single desktop window. Firebase Authentication controls who can sign in; role-based access limits viewers to read-only use while admins can create, edit, and delete records.
 
-Must be able to edit previous data
-Must display all the depts on the first screen
-Must be able to create sub-depts 
-Must be able to add extra details to a person if needed 
+## Requirements
 
+### Data model
 
-General functionalities:
+- **Departments** — top-level departments with optional sub-departments
+- **Employees** — each person belongs to a department and can have free-form notes
+- **Computers** — per-employee or department/lab equipment with:
+  - Employee ID (when assigned to a person)
+  - Department + sub-department
+  - Monitor model / PC model
+  - Processor, RAM, storage
+  - OS version
+  - Webcam specs
+  - Desk phone model
+  - Notes
+- **Instruments** — lab equipment (model, serial number, notes) tied to a department
 
-Flow 1 - Accessing an employee:
-Begin with either a search (id#, name, department, etc.) or select a department 
-Access database
-View all members available based on the search or selection results 
-Either have a member card, pop-up, or spreadsheet-style view of info 
+### Capabilities
 
-Flow 2 - Adding an employee: 
-Add employee by id# 
-Checks if the employee exists
-Add other info
-Create an entry in the database
+- View all departments on the first screen; select one to see its members
+- Create sub-departments
+- Search by employee ID, name, department, and related fields
+- Edit existing records and add extra details when needed
+- Role-based UI: **viewer** (browse only) and **admin** (full access)
 
-Flow 3 - Editing/Deleting an employee:
-Find employee 
-Edit information or delete the employee 
-Update database
+## User flows
 
-## Running with authentication
+### Flow 1 — Accessing an employee
 
-1. Install dependencies: `pip install -r requirements.txt`
-2. Configure Firebase in `config/firebase_config.py` and place `firebase-service-account.json` in the project root.
-3. Create a user in Firebase Console → Authentication → Users.
+1. Start with a search (ID, name, department, etc.) or select a department from the sidebar
+2. View members matching the search or selection
+3. Open a member to see their profile, assigned computers, and notes
 
-**Run the app (API starts automatically):**
-```bash
-cd Ascent-Inventory
-python3 main.py
+### Flow 2 — Adding an employee
+
+1. Choose **Add Employee** (admin only)
+2. Enter an employee ID — the app checks whether that ID already exists
+3. Fill in name, department, and any other details
+4. Save to create the database entry
+
+### Flow 3 — Editing or deleting an employee
+
+1. Find the employee via search or department browse
+2. Open their detail view
+3. Edit information or delete the record (admin only)
+4. Changes are persisted through the API
+
+## Tech stack
+
+| Layer      | Technology                          |
+| ---------- | ----------------------------------- |
+| Desktop UI | PyQt6                               |
+| API        | FastAPI + Uvicorn                   |
+| Database   | SQLite (`backend/inventory.db`)     |
+| Auth       | Firebase Authentication + Admin SDK |
+
+## Project structure
+
+```
+Ascent-Inventory/
+├── main.py                 # Desktop app entry point
+├── config/
+│   └── firebase_config.py  # Firebase + API settings
+├── frontend/               # PyQt6 UI, services, API client
+├── backend/
+│   ├── api/                # FastAPI routes and middleware
+│   ├── database.py         # Schema and DB helpers
+│   └── inventory.db        # SQLite database (created on first run)
+├── seed.py                 # Optional sample data for testing
+└── requirements.txt
 ```
 
-The desktop app launches a local API in the background on `API_BASE_URL` (default `http://127.0.0.1:8000`). You do not need a second terminal.
+## Roles
 
-To run the API alone for development:
-```bash
-uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-After your first login, promote yourself to admin:
-```bash
-sqlite3 backend/inventory.db "UPDATE app_users SET role = 'admin' WHERE email = 'you@company.com';"
-```
-
-Roles: `viewer` (read-only) and `admin` (full access).
+| Role    | Access                                      |
+| ------- | ------------------------------------------- |
+| viewer  | Browse departments, employees, and inventory |
+| admin   | Create, edit, and delete all records         |
