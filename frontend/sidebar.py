@@ -7,13 +7,14 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QRect
 from PyQt6.QtGui import QIcon, QColor, QPainter
 
-import backend.departments as departments
+import frontend.services.departments as departments
+from frontend import session
 from frontend.dialogs import _ok_cancel
 from frontend.theme import (
     SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH,
     SIDEBAR_BKG, ROW_SELECTED, ROW_HOVER, TEXT_PRIMARY, TEXT_ON_DARK,
 )
-from frontend.widgets import primary_button, h_separator
+from frontend.widgets import primary_button, danger_button, h_separator
 
 _DEPT_NAME_ROLE = Qt.ItemDataRole.UserRole.value + 1
 _DEPT_ID_ROLE = Qt.ItemDataRole.UserRole
@@ -253,6 +254,7 @@ class Sidebar(QWidget):
     dept_selected = pyqtSignal(int, str)
     all_employees_selected = pyqtSignal()
     width_changed = pyqtSignal(int)
+    sign_out_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -280,18 +282,45 @@ class Sidebar(QWidget):
         footer = QWidget()
         footer.setObjectName("SidebarFooter")
         footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        footer_layout = QHBoxLayout(footer)
-        footer_layout.setContentsMargins(16, 10, 16, 18)
-        add_button = primary_button("+ Add Department")
-        add_button.clicked.connect(self._add_dept)
-        footer_layout.addWidget(add_button)
+        footer_layout = QVBoxLayout(footer)
+        footer_layout.setContentsMargins(16, 10, 16, 16)
+        footer_layout.setSpacing(10)
+
+        self._add_dept_btn = primary_button("+ Add Department")
+        self._add_dept_btn.clicked.connect(self._add_dept)
+        footer_layout.addWidget(self._add_dept_btn)
+        if not session.is_admin():
+            self._add_dept_btn.hide()
+
+        account_row = QWidget()
+        account_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        account_layout = QHBoxLayout(account_row)
+        account_layout.setContentsMargins(0, 0, 0, 0)
+        account_layout.setSpacing(8)
+
+        self._role_label = QLabel()
+        self._role_label.setObjectName("SidebarAccountRole")
+        account_layout.addWidget(self._role_label, 1)
+
+        self._sign_out_btn = danger_button("Sign out")
+        self._sign_out_btn.clicked.connect(self.sign_out_requested.emit)
+        account_layout.addWidget(self._sign_out_btn)
+
+        footer_layout.addWidget(account_row)
+
         layout.addWidget(footer)
 
         self._selected_id: int | None = None
 
+    def set_user(self, email: str, role: str) -> None:
+        self._role_label.setText(role.capitalize())
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.width_changed.emit(self.width())
+
+    def refresh_admin_actions(self):
+        self._add_dept_btn.setVisible(session.is_admin())
 
     def refresh(self):
         self._tree.refresh(self._selected_id)

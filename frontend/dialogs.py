@@ -5,10 +5,11 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-import backend.departments as departments
-import backend.employees as employees
-import backend.computers as computers
-import backend.instruments as instruments
+import frontend.services.departments as departments
+import frontend.services.employees as employees
+import frontend.services.computers as computers
+import frontend.services.instruments as instruments
+from frontend.api_client import ApiError
 
 def _ok_cancel(parent_dialog: QDialog, ok_text="Save") -> QDialogButtonBox:
     buttons = QDialogButtonBox(
@@ -96,7 +97,11 @@ class AddEmployeeDialog(QDialog):
             QMessageBox.warning(self, "Duplicate", f"Employee ID '{employee_id}' already exists.")
             return
 
-        employees.add_employee(employee_id, dept_id, first, last, notes=notes)
+        try:
+            employees.add_employee(employee_id, dept_id, first, last, notes=notes)
+        except ApiError as exc:
+            QMessageBox.warning(self, "Add Employee", exc.message)
+            return
         self.accept()
 
 class EditEmployeeDialog(QDialog):
@@ -164,13 +169,17 @@ class EditEmployeeDialog(QDialog):
             QMessageBox.warning(self, "Required", "Please fill in all required fields.")
             return
         
-        employees.edit_employee(
-            self._employee_id,
-            first_name=first,
-            last_name=last,
-            dept_id=self._dept_combo.currentData(),
-            notes=self._notes_edit.toPlainText().strip()
-        )
+        try:
+            employees.edit_employee(
+                self._employee_id,
+                first_name=first,
+                last_name=last,
+                dept_id=self._dept_combo.currentData(),
+                notes=self._notes_edit.toPlainText().strip()
+            )
+        except ApiError as exc:
+            QMessageBox.warning(self, "Edit Employee", exc.message)
+            return
         self.accept()
 
 class AddComputerDialog(QDialog):
@@ -231,18 +240,22 @@ class AddComputerDialog(QDialog):
         layout.addWidget(buttons)
     
     def _accept(self):
-        computers.add_computer(
-            computer_type="employee" if self._employee_id else "shared",
-            employee_id=self._employee_id,
-            dept_id=self._dept_id,
-            pc_model=self._pc_edit.text().strip(),
-            monitor_model=self._monitor_edit.text().strip(),
-            ram=self._ram_edit.text().strip(),
-            storage=self._storage_edit.text().strip(),
-            os_version=self._os_edit.text().strip(),
-            webcam_specs=self._webcam_edit.text().strip(),
-            desk_phone=self._phone_edit.text().strip(),
-        )
+        try:
+            computers.add_computer(
+                computer_type="employee" if self._employee_id else "shared",
+                employee_id=self._employee_id,
+                dept_id=self._dept_id,
+                pc_model=self._pc_edit.text().strip(),
+                monitor_model=self._monitor_edit.text().strip(),
+                ram=self._ram_edit.text().strip(),
+                storage=self._storage_edit.text().strip(),
+                os_version=self._os_edit.text().strip(),
+                webcam_specs=self._webcam_edit.text().strip(),
+                desk_phone=self._phone_edit.text().strip(),
+            )
+        except ApiError as exc:
+            QMessageBox.warning(self, "Add Computer", exc.message)
+            return
         self.accept()
 
 class EditComputerDialog(QDialog):
@@ -305,17 +318,21 @@ class EditComputerDialog(QDialog):
         layout.addWidget(buttons)
 
     def _accept(self):
-        computers.edit_computer(
-            self._computer_id,
-            pc_model=self._pc.text().strip(),
-            monitor_model=self._monitor.text().strip(),
-            ram=self._ram.text().strip(),
-            storage=self._storage.text().strip(),
-            os_version=self._os.text().strip(),
-            webcam_specs=self._webcam.text().strip(),
-            desk_phone=self._phone.text().strip(),
-            notes=self._notes.toPlainText().strip()
-        )
+        try:
+            computers.edit_computer(
+                self._computer_id,
+                pc_model=self._pc.text().strip(),
+                monitor_model=self._monitor.text().strip(),
+                ram=self._ram.text().strip(),
+                storage=self._storage.text().strip(),
+                os_version=self._os.text().strip(),
+                webcam_specs=self._webcam.text().strip(),
+                desk_phone=self._phone.text().strip(),
+                notes=self._notes.toPlainText().strip()
+            )
+        except ApiError as exc:
+            QMessageBox.warning(self, "Edit Device", exc.message)
+            return
         self.accept()
 
 class AddInstrumentDialog(QDialog):
@@ -364,10 +381,14 @@ class AddInstrumentDialog(QDialog):
             QMessageBox.warning(self, "Required", "Instrument name cannot be empty.")
             return
         
-        instruments.add_instrument(
-            self._lab_id,
-            name,
-            self._model_edit.text().strip(),
-            self._notes_edit.toPlainText().strip()
-        )
+        try:
+            instruments.add_instrument(
+                self._lab_id,
+                name,
+                self._model_edit.text().strip(),
+                self._notes_edit.toPlainText().strip()
+            )
+        except ApiError as exc:
+            QMessageBox.warning(self, "Add Instrument", exc.message)
+            return
         self.accept()

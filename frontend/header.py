@@ -4,12 +4,13 @@ from PyQt6.QtGui import QPixmap
 
 from frontend.theme import SIDEBAR_MIN_WIDTH, TEXT_SECONDARY
 
+
 class HeaderBar(QWidget):
     search_changed = pyqtSignal(str)
     _LOGO_V_MARGIN = 12
     _LOGO_H_MARGIN = 12
 
-    def __init__(self, context: str = "", show_search: bool = True, parent = None):
+    def __init__(self, context: str = "", show_search: bool = True, parent=None):
         super().__init__(parent)
         self.setObjectName("HeaderBar")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -45,7 +46,7 @@ class HeaderBar(QWidget):
             context_label = QLabel(context)
             context_label.setObjectName("HeaderContext")
             layout.addWidget(context_label)
-        
+
         layout.addStretch()
 
         if show_search:
