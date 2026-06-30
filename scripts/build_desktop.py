@@ -244,6 +244,7 @@ def build(make_zip: bool = False) -> None:
         "--hidden-import=config.firebase_config",
         "--hidden-import=backend.auth_client",
         "--hidden-import=backend.api_server",
+        "--hidden-import=frontend.workers",
         "--collect-submodules=backend",
         "--collect-submodules=frontend",
         "--collect-all=PyQt6",

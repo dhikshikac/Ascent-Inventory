@@ -15,7 +15,8 @@ from frontend.widgets import (
     section_label, field_pair, h_separator, computer_label,
 )
 
-from frontend.dialogs import EditEmployeeDialog, AddComputerDialog, EditComputerDialog 
+from frontend.dialogs import EditEmployeeDialog, AddComputerDialog, EditComputerDialog
+from frontend.workers import run_api_task
 
 class ComputerCard(QFrame):
     edit_requested = pyqtSignal(int)
@@ -99,33 +100,68 @@ class ComputerCard(QFrame):
 class EmployeeDetailView(QWidget):
 
     back_clicked = pyqtSignal()
-    data_changed = pyqtSignal()
- 
+    data_changed = pyqtSignal(bool)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("ContentPanel")
         self._employee_id: str | None = None
- 
+        self._load_generation = 0
+
         self._root_layout = QVBoxLayout(self)
         self._root_layout.setContentsMargins(0, 0, 0, 0)
         self._root_layout.setSpacing(0)
         self._content_widget: QWidget | None = None
-  
+
     def load(self, employee_id: str):
         self._employee_id = employee_id
-        self._rebuild()
-  
-    def _rebuild(self):
+        self._load_generation += 1
+        generation = self._load_generation
+        self._show_loading()
+
+        def on_success(payload):
+            if generation != self._load_generation:
+                return
+            self._build_from_detail(payload)
+
+        def on_error(exc: Exception):
+            if generation != self._load_generation:
+                return
+            message = exc.message if isinstance(exc, ApiError) else str(exc)
+            QMessageBox.warning(self, "Load failed", message)
+
+        run_api_task(
+            lambda: employees.get_employee_detail(employee_id),
+            on_success,
+            on_error,
+        )
+
+    def _clear_content(self):
         if self._content_widget:
             self._content_widget.deleteLater()
             self._content_widget = None
- 
-        emp = employees.get_employee(self._employee_id)
+
+    def _show_loading(self):
+        self._clear_content()
+        self._content_widget = QWidget()
+        layout = QVBoxLayout(self._content_widget)
+        layout.setContentsMargins(24, 24, 24, 24)
+        label = QLabel("Loading…")
+        label.setObjectName("EmptyState")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(label)
+        self._root_layout.addWidget(self._content_widget)
+
+    def _build_from_detail(self, payload: dict):
+        self._clear_content()
+
+        emp = payload.get("employee")
         if not emp:
             return
- 
-        dept_name = departments.get_name(emp.get("dept_id"))
- 
+
+        dept_name = payload.get("dept_name") or departments.get_name(emp.get("dept_id"))
+        comp_list = payload.get("computers", [])
+
         self._content_widget = QWidget()
         outer = QVBoxLayout(self._content_widget)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -205,8 +241,7 @@ class EmployeeDetailView(QWidget):
         sl.setContentsMargins(24, 4, 24, 24)
         sl.setSpacing(12)
         sl.setAlignment(Qt.AlignmentFlag.AlignTop)
- 
-        comp_list = computers.get_computers_by_employee(self._employee_id)
+
         if comp_list:
             for comp in comp_list:
                 card = ComputerCard(comp)
@@ -228,8 +263,8 @@ class EmployeeDetailView(QWidget):
     def _edit(self):
         dlg = EditEmployeeDialog(self._employee_id, self)
         if dlg.exec() == dlg.DialogCode.Accepted:
-            self.data_changed.emit()
-            self._rebuild()
+            self.data_changed.emit(False)
+            self.load(self._employee_id)
  
     def _delete(self):
         emp = employees.get_employee(self._employee_id)
@@ -247,18 +282,20 @@ class EmployeeDetailView(QWidget):
                 QMessageBox.warning(self, "Delete Employee", exc.message)
                 return
             self._employee_id = None
-            self.data_changed.emit()
+            self.data_changed.emit(False)
             self.back_clicked.emit()
  
     def _add_device(self):
         dlg = AddComputerDialog(employee_id=self._employee_id, parent=self)
         if dlg.exec() == dlg.DialogCode.Accepted:
-            self._rebuild()
+            self.data_changed.emit(False)
+            self.load(self._employee_id)
  
     def _edit_device(self, comp_id: int):
         dlg = EditComputerDialog(comp_id, self)
         if dlg.exec() == dlg.DialogCode.Accepted:
-            self._rebuild()
+            self.data_changed.emit(False)
+            self.load(self._employee_id)
  
     def _delete_device(self, comp_id: int):
         reply = QMessageBox.question(
@@ -271,19 +308,21 @@ class EmployeeDetailView(QWidget):
             except ApiError as exc:
                 QMessageBox.warning(self, "Delete Device", exc.message)
                 return
-            self._rebuild()
+            self.data_changed.emit(False)
+            self.load(self._employee_id)
 
 
 class InventoryDetailView(QWidget):
 
     back_clicked = pyqtSignal()
-    data_changed = pyqtSignal()
+    data_changed = pyqtSignal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("ContentPanel")
         self._kind: str | None = None
         self._record_id: int | None = None
+        self._load_generation = 0
 
         self._root_layout = QVBoxLayout(self)
         self._root_layout.setContentsMargins(0, 0, 0, 0)
@@ -295,23 +334,53 @@ class InventoryDetailView(QWidget):
     def load(self, kind: str, record_id: int):
         self._kind = kind
         self._record_id = record_id
-        self._rebuild()
+        self._load_generation += 1
+        generation = self._load_generation
+        self._show_loading()
 
-    def _rebuild(self):
+        def fetch():
+            if kind == "Computer":
+                return computers.get_computer(record_id)
+            return instruments.get_instrument(record_id)
+
+        def on_success(record):
+            if generation != self._load_generation:
+                return
+            if not record:
+                QMessageBox.warning(self, "Load failed", "Record not found.")
+                return
+            if kind == "Computer":
+                self._build_computer(record)
+            else:
+                self._build_instrument(record)
+
+        def on_error(exc: Exception):
+            if generation != self._load_generation:
+                return
+            message = exc.message if isinstance(exc, ApiError) else str(exc)
+            QMessageBox.warning(self, "Load failed", message)
+
+        run_api_task(fetch, on_success, on_error)
+
+    def _clear_content(self):
         if self._content_widget:
             self._content_widget.deleteLater()
             self._content_widget = None
 
-        if self._kind == "Computer":
-            record = computers.get_computer(self._record_id)
-            if not record:
-                return
-            self._build_computer(record)
-        elif self._kind == "Instrument":
-            record = instruments.get_instrument(self._record_id)
-            if not record:
-                return
-            self._build_instrument(record)
+    def _show_loading(self):
+        self._clear_content()
+        self._content_widget = QWidget()
+        layout = QVBoxLayout(self._content_widget)
+        layout.setContentsMargins(24, 24, 24, 24)
+        label = QLabel("Loading…")
+        label.setObjectName("EmptyState")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(label)
+        self._root_layout.addWidget(self._content_widget)
+
+    def _rebuild(self):
+        if self._kind and self._record_id is not None:
+            self.load(self._kind, self._record_id)
 
     def _base_content(self, title: str, meta: str):
         self._content_widget = QWidget()
@@ -357,6 +426,7 @@ class InventoryDetailView(QWidget):
         return outer
 
     def _build_computer(self, computer: dict):
+        self._clear_content()
         dept_id = computer.get("dept_id") or computer.get("lab_id")
         dept_name = departments.get_name(dept_id)
         title = computer_label(computer)
@@ -391,6 +461,7 @@ class InventoryDetailView(QWidget):
         self._root_layout.addWidget(self._content_widget)
 
     def _build_instrument(self, instrument: dict):
+        self._clear_content()
         dept_name = departments.get_name(instrument.get("lab_id"))
         title = instrument.get("model_name") or f"Instrument {instrument.get('id')}"
         serial = instrument.get("serial_number") or f"INST-{instrument.get('id')}"
@@ -456,5 +527,5 @@ class InventoryDetailView(QWidget):
                 return
 
             self._record_id = None
-            self.data_changed.emit()
+            self.data_changed.emit(False)
             self.back_clicked.emit()

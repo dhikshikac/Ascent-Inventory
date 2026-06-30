@@ -27,6 +27,36 @@ def list_employees(_user=Depends(get_current_user)):
     return employees.get_all_employees()
 
 
+@router.get("/summary")
+def employees_summary(_user=Depends(get_current_user)):
+    from backend import computers, departments
+
+    all_emps = employees.get_all_employees()
+    employee_ids = [e["employee_id"] for e in all_emps]
+    devices_by_employee: dict[str, list] = {}
+    for device in computers.get_computers_by_employees(employee_ids):
+        devices_by_employee.setdefault(device["employee_id"], []).append(device)
+    return {
+        "employees": all_emps,
+        "devices_by_employee": devices_by_employee,
+        "dept_names": {d["id"]: d["name"] for d in departments.get_all_depts()},
+    }
+
+
+@router.get("/{employee_id}/detail")
+def employee_detail(employee_id: str, _user=Depends(get_current_user)):
+    from backend import computers, departments
+
+    employee = employees.get_employee(employee_id)
+    if employee is None:
+        raise HTTPException(404, "Employee not found")
+    return {
+        "employee": employee,
+        "dept_name": departments.get_name(employee.get("dept_id")),
+        "computers": computers.get_computers_by_employee(employee_id),
+    }
+
+
 @router.get("/{employee_id}")
 def get_employee(employee_id: str, _user=Depends(get_current_user)):
     employee = employees.get_employee(employee_id)

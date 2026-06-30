@@ -66,7 +66,7 @@ class MainWindow(QMainWindow):
         self._list_view.employee_selected.connect(self._show_detail)
         self._list_view.computer_selected.connect(lambda comp_id: self._show_inventory_detail("Computer", comp_id))
         self._list_view.instrument_selected.connect(lambda inst_id: self._show_inventory_detail("Instrument", inst_id))
-        self._list_view.data_changed.connect(self._sidebar.refresh)
+        self._list_view.data_changed.connect(self._on_list_data_changed)
         self._list_view.department_deleted.connect(self._on_department_deleted)
         self._list_view.search_available_changed.connect(self._on_search_available_changed)
 
@@ -114,9 +114,15 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentIndex(_LIST_IDX)
         self._header.set_search_visible(self._list_view.has_inventory_rows())
 
-    def _on_detail_data_changed(self):
+    def _on_list_data_changed(self, refresh_sidebar: bool = False):
         self._list_view.refresh()
-        self._sidebar.refresh()
+        if refresh_sidebar:
+            self._sidebar.refresh()
+
+    def _on_detail_data_changed(self, refresh_sidebar: bool = False):
+        self._list_view.refresh()
+        if refresh_sidebar:
+            self._sidebar.refresh()
 
     def _on_department_deleted(self):
         self._sidebar.clear_selection()
@@ -152,6 +158,7 @@ def authenticate():
     from frontend.login_window import LoginDialog
     from backend.auth_client import sign_in, AuthError
     from backend import api_server
+    import frontend.services.departments as departments
 
     try:
         api_server.ensure_running()
@@ -184,6 +191,10 @@ def authenticate():
         return None
 
     session.set_session(user, auth_session.get("refresh_token"))
+    try:
+        departments.prefetch()
+    except ApiError:
+        pass
     return user
 
 

@@ -28,9 +28,16 @@ def _health_url() -> str:
     return f"{API_BASE_URL.rstrip('/')}/health"
 
 
+def _is_local_target() -> bool:
+    host, _ = _parse_target()
+    return host in _LOCAL_HOSTS
+
+
 def is_healthy() -> bool:
+    # Short connect timeout; remote read timeout allows Render cold starts.
+    timeout = (2.0, 8.0) if not _is_local_target() else 0.5
     try:
-        requests.get(_health_url(), timeout=0.5).raise_for_status()
+        requests.get(_health_url(), timeout=timeout).raise_for_status()
         return True
     except Exception:
         return False
@@ -45,6 +52,13 @@ def ensure_running(timeout: float = 20.0) -> None:
 
     host, port = _parse_target()
     if host not in _LOCAL_HOSTS:
+        # Remote APIs (e.g. Render) may cold-start; poll before failing.
+        remote_timeout = max(timeout, 90.0)
+        deadline = time.time() + remote_timeout
+        while time.time() < deadline:
+            if is_healthy():
+                return
+            time.sleep(2.0)
         raise RuntimeError(
             f"API at {API_BASE_URL} is not reachable. "
             "Start the remote server or point API_BASE_URL to localhost."
