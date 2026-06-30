@@ -5,6 +5,14 @@ def get_all_employees():
     return get_client().get("/employees")
 
 
+def get_all_employees_summary():
+    return get_client().get("/employees/summary")
+
+
+def get_employee_detail(employee_id):
+    return get_client().get(f"/employees/{employee_id}/detail")
+
+
 def get_all_dept_employees(dept_id):
     return get_client().get(f"/departments/{dept_id}/employees")
 

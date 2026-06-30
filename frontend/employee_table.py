@@ -10,10 +10,9 @@ from PyQt6.QtGui import QIcon, QPalette
 import os
 import frontend.services.employees as employees
 import frontend.services.departments as departments
-import frontend.services.computers as computers
-import frontend.services.instruments as instruments
 from frontend import session
 from frontend.api_client import ApiError
+from frontend.workers import run_api_task
 from frontend.widgets import primary_button, danger_button, empty_state, HoverTableWidget, computer_label
 from frontend.dialogs import AddEmployeeDialog, AddComputerDialog, AddInstrumentDialog
 
@@ -105,7 +104,7 @@ class EmployeeListView(QWidget):
     employee_selected = pyqtSignal(str)
     computer_selected = pyqtSignal(int)
     instrument_selected = pyqtSignal(int)
-    data_changed = pyqtSignal()
+    data_changed = pyqtSignal(bool)
     department_deleted = pyqtSignal()
     search_available_changed = pyqtSignal(bool)
 
@@ -118,6 +117,10 @@ class EmployeeListView(QWidget):
         self._filter: str = ""
         self._all_rows: list[dict] = []
         self._is_all_employees: bool = False
+        self._all_emp_cache: list[dict] = []
+        self._all_emp_dept_names: dict[int, str] = {}
+        self._all_emp_devices: dict[str, list[dict]] = {}
+        self._load_generation = 0
 
         # Sort state for All Employees view: True = A→Z, False = Z→A
         self._all_emp_sort_asc: bool = True
@@ -314,7 +317,7 @@ class EmployeeListView(QWidget):
     def apply_filter(self, text: str):
         self._filter = text.lower()
         if self._is_all_employees:
-            self._refresh_all_employees()
+            self._render_all_employees()
         else:
             self._render()
 
@@ -327,16 +330,47 @@ class EmployeeListView(QWidget):
             self._render()
             return
 
-        dept_ids = departments.get_descendant_ids(self._dept_id)
-        dept_names = {d["id"]: d["name"] for d in departments.get_all_depts()}
-        rows: list[dict] = []
+        self._load_generation += 1
+        generation = self._load_generation
+        dept_id = self._dept_id
+        self._set_loading(True)
 
-        employee_rows = employees.get_all_dept_employees(self._dept_id)
-        employee_ids = [emp["employee_id"] for emp in employee_rows]
+        def on_success(payload):
+            if generation != self._load_generation:
+                return
+            self._set_loading(False)
+            self._all_rows = self._rows_from_inventory(payload)
+            self._render()
+
+        def on_error(exc: Exception):
+            if generation != self._load_generation:
+                return
+            self._set_loading(False)
+            message = exc.message if isinstance(exc, ApiError) else str(exc)
+            QMessageBox.warning(self, "Load failed", message)
+
+        run_api_task(
+            lambda: departments.get_dept_inventory(dept_id),
+            on_success,
+            on_error,
+        )
+
+    def _set_loading(self, loading: bool) -> None:
+        if loading:
+            self._count_label.setText("Loading…")
+        elif self._is_all_employees:
+            pass
+        elif self._dept_id is not None:
+            self._count_label.setText("")
+
+    def _rows_from_inventory(self, payload: dict) -> list[dict]:
+        dept_names = payload.get("dept_names", {})
+        employee_rows = payload.get("employees", [])
         devices_by_employee: dict[str, list[dict]] = {}
-        for device in computers.get_computers_by_employees(employee_ids):
+        for device in payload.get("employee_computers", []):
             devices_by_employee.setdefault(device.get("employee_id"), []).append(device)
 
+        rows: list[dict] = []
         for emp in employee_rows:
             name = f"{emp.get('first_name', '')} {emp.get('last_name', '')}".strip()
             employee_devices = devices_by_employee.get(emp["employee_id"], [])
@@ -351,7 +385,7 @@ class EmployeeListView(QWidget):
                 "_record_id": emp.get("employee_id"),
             })
 
-        for inst in instruments.get_instruments_by_labs(dept_ids):
+        for inst in payload.get("instruments", []):
             rows.append({
                 "_kind": "Instrument",
                 "_item_id": inst.get("serial_number") or f"INST-{inst.get('id')}",
@@ -363,7 +397,7 @@ class EmployeeListView(QWidget):
                 "_record_id": inst.get("id"),
             })
 
-        for comp in computers.get_computers_by_depts(dept_ids):
+        for comp in payload.get("dept_computers", []):
             rows.append({
                 "_kind": "Computer",
                 "_item_id": f"COMP-{comp.get('id')}",
@@ -375,8 +409,7 @@ class EmployeeListView(QWidget):
                 "_record_id": comp.get("id"),
             })
 
-        self._all_rows = rows
-        self._render()
+        return rows
 
     #All Employees helpers
 
@@ -396,7 +429,31 @@ class EmployeeListView(QWidget):
         self._all_emp_header.updateSection(0)
 
     def _refresh_all_employees(self):
-        """Populate the All Employees table."""
+        """Fetch All Employees data from the API, then render."""
+        self._load_generation += 1
+        generation = self._load_generation
+        self._set_loading(True)
+
+        def on_success(payload):
+            if generation != self._load_generation:
+                return
+            self._set_loading(False)
+            self._all_emp_dept_names = payload.get("dept_names", {})
+            self._all_emp_cache = payload.get("employees", [])
+            self._all_emp_devices = payload.get("devices_by_employee", {})
+            self._render_all_employees()
+
+        def on_error(exc: Exception):
+            if generation != self._load_generation:
+                return
+            self._set_loading(False)
+            message = exc.message if isinstance(exc, ApiError) else str(exc)
+            QMessageBox.warning(self, "Load failed", message)
+
+        run_api_task(employees.get_all_employees_summary, on_success, on_error)
+
+    def _render_all_employees(self):
+        """Render the All Employees table from cached data (no API calls)."""
         self._table_scroll.hide()
         self._empty.hide()
         self._all_emp_table.show()
@@ -407,21 +464,17 @@ class EmployeeListView(QWidget):
             if header_item:
                 header_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
-        dept_names = {d["id"]: d["name"] for d in departments.get_all_depts()}
+        dept_names = self._all_emp_dept_names
+        devices_by_employee = self._all_emp_devices
 
         all_emps = sorted(
-            employees.get_all_employees(),
+            self._all_emp_cache,
             key=lambda e: (
                 (e.get("last_name") or "").lower(),
                 (e.get("first_name") or "").lower(),
             ),
             reverse=not self._all_emp_sort_asc,
         )
-
-        employee_ids = [emp.get("employee_id") for emp in all_emps]
-        devices_by_employee: dict[str, list[dict]] = {}
-        for device in computers.get_computers_by_employees(employee_ids):
-            devices_by_employee.setdefault(device.get("employee_id"), []).append(device)
 
         f = self._filter
         if f:
@@ -435,7 +488,7 @@ class EmployeeListView(QWidget):
                 ).lower()
             ]
 
-        self.search_available_changed.emit(True)
+        self.search_available_changed.emit(bool(self._all_emp_cache))
 
         self._all_emp_table.setRowCount(0)
         if not all_emps:
@@ -479,7 +532,7 @@ class EmployeeListView(QWidget):
         """Toggle sort direction when the Name column header is clicked."""
         if logical_index == 0:
             self._all_emp_sort_asc = not self._all_emp_sort_asc
-            self._refresh_all_employees()
+            self._render_all_employees()
 
     def _on_all_emp_selection(self):
         sel = self._all_emp_table.selectedItems()
@@ -552,7 +605,7 @@ class EmployeeListView(QWidget):
             return
         dlg = AddEmployeeDialog(dept_id=self._dept_id, parent=self)
         if dlg.exec() == AddEmployeeDialog.DialogCode.Accepted:
-            self.data_changed.emit()
+            self.data_changed.emit(False)
             self.refresh()
 
     def _add_computer(self):
@@ -560,7 +613,7 @@ class EmployeeListView(QWidget):
             return
         dlg = AddComputerDialog(dept_id=self._dept_id, parent=self)
         if dlg.exec() == AddComputerDialog.DialogCode.Accepted:
-            self.data_changed.emit()
+            self.data_changed.emit(False)
             self.refresh()
 
     def _add_instrument(self):
@@ -568,7 +621,7 @@ class EmployeeListView(QWidget):
             return
         dlg = AddInstrumentDialog(lab_id=self._dept_id, parent=self)
         if dlg.exec() == AddInstrumentDialog.DialogCode.Accepted:
-            self.data_changed.emit()
+            self.data_changed.emit(False)
             self.refresh()
 
     def _delete_department(self):

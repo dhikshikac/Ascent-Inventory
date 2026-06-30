@@ -25,6 +25,25 @@ def create_department(body: DeptCreate, _user=Depends(require_role("admin"))):
     return {"id": dept_id}
 
 
+@router.get("/{dept_id}/inventory")
+def department_inventory(dept_id: int, _user=Depends(get_current_user)):
+    from backend import computers, employees, instruments
+
+    dept_ids = departments.get_descendant_ids(dept_id)
+    all_depts = departments.get_all_depts()
+    employee_rows = employees.get_all_dept_employees(dept_id)
+    employee_ids = [e["employee_id"] for e in employee_rows]
+
+    return {
+        "dept_ids": dept_ids,
+        "dept_names": {d["id"]: d["name"] for d in all_depts},
+        "employees": employee_rows,
+        "employee_computers": computers.get_computers_by_employees(employee_ids),
+        "instruments": instruments.get_instruments_by_labs(dept_ids),
+        "dept_computers": computers.get_computers_by_depts(dept_ids),
+    }
+
+
 @router.get("/{dept_id}/name")
 def department_name(dept_id: int, _user=Depends(get_current_user)):
     return {"name": departments.get_name(dept_id)}
