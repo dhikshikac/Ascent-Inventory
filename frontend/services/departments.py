@@ -3,6 +3,10 @@ from frontend.api_client import ApiError, get_client
 _cache: list[dict] | None = None
 
 
+def is_cached() -> bool:
+    return _cache is not None
+
+
 def invalidate() -> None:
     global _cache
     _cache = None
@@ -13,6 +17,10 @@ def prefetch() -> list[dict]:
     global _cache
     _cache = get_client().get("/departments")
     return _cache
+
+
+def get_cached_depts():
+    return list(_cache) if _cache is not None else None
 
 
 def get_all_depts(*, force: bool = False):

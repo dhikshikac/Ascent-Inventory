@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QLineEdit, QVBoxLayout
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QPixmap
 
 from frontend.theme import SIDEBAR_MIN_WIDTH, TEXT_SECONDARY
@@ -55,8 +55,19 @@ class HeaderBar(QWidget):
             self._search = QLineEdit()
             self._search.setObjectName("SearchBar")
             self._search.setPlaceholderText("Search employees, IDs...")
-            self._search.textChanged.connect(self.search_changed)
+            self._search_debounce = QTimer(self)
+            self._search_debounce.setSingleShot(True)
+            self._search_debounce.setInterval(200)
+            self._search_debounce.timeout.connect(self._emit_search)
+            self._search.textChanged.connect(self._on_search_text_changed)
             layout.addWidget(self._search)
+
+    def _on_search_text_changed(self, _text: str):
+        self._search_debounce.start()
+
+    def _emit_search(self):
+        if hasattr(self, "_search"):
+            self.search_changed.emit(self._search.text())
 
     def _load_logo(self) -> QPixmap:
         path = asset_path("media", "ascent-logo.png")

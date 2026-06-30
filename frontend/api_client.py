@@ -14,6 +14,10 @@ class ApiClient:
         self._token = id_token
         self._refresh_token = refresh_token
         self._base = API_BASE_URL.rstrip("/")
+        self._session = requests.Session()
+
+    def close(self) -> None:
+        self._session.close()
 
     def set_token(self, id_token: str, refresh_token: str | None = None) -> None:
         self._token = id_token
@@ -49,7 +53,7 @@ class ApiClient:
         from frontend import session
 
         session.set_session(session.user() or {}, tokens.get("refresh_token"))
-        response = requests.request(
+        response = self._session.request(
             method,
             f"{self._base}{path}",
             headers=self._headers(),
@@ -59,7 +63,7 @@ class ApiClient:
         return self._handle_response(response)
 
     def _request(self, method: str, path: str, **kwargs):
-        response = requests.request(
+        response = self._session.request(
             method,
             f"{self._base}{path}",
             headers=self._headers(),
@@ -104,4 +108,7 @@ def get_client() -> ApiClient:
 
 
 def clear_client() -> None:
-    set_client(None)
+    global _client
+    if _client is not None:
+        _client.close()
+    _client = None

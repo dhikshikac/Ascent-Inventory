@@ -9,6 +9,8 @@ from PyQt6.QtGui import QIcon, QColor, QPainter
 
 import frontend.services.departments as departments
 from frontend import session
+from frontend.workers import run_api_task
+from frontend.api_client import ApiError
 from frontend.dialogs import _ok_cancel
 from frontend.theme import (
     SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH,
@@ -114,6 +116,7 @@ class _DeptRowDelegate(QStyledItemDelegate):
 class DeptTree(QTreeWidget):
     dept_selected = pyqtSignal(int, str)
     all_employees_selected = pyqtSignal()
+    dept_hovered = pyqtSignal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -122,14 +125,19 @@ class DeptTree(QTreeWidget):
         self.setAnimated(True)
         self.setRootIsDecorated(False)
         self.itemClicked.connect(self._on_click)
+        self.itemEntered.connect(self._on_item_entered)
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._icon_down = QIcon(asset_path("media", "down.svg"))
         self._icon_up = QIcon(asset_path("media", "up.svg"))
         self.setItemDelegate(_DeptRowDelegate(self._icon_down, self._icon_up, self))
         self._expanded_ids: set[int] = set()
 
-    def refresh(self, selected_id=None):
+    def refresh(self, selected_id=None, all_depts=None):
         self.blockSignals(True)
+        animated = self.isAnimated()
+        self.setAnimated(False)
         self.clear()
 
         all_emp_item = QTreeWidgetItem(self)
@@ -139,7 +147,7 @@ class DeptTree(QTreeWidget):
         if selected_id == ALL_EMPLOYEES_ID:
             all_emp_item.setSelected(True)
 
-        all_depts = departments.get_all_depts()
+        all_depts = all_depts if all_depts is not None else departments.get_all_depts()
         roots = [d for d in all_depts if d["parent_id"] is None]
         children_map: dict[int, list] = {}
         for d in all_depts:
@@ -170,7 +178,14 @@ class DeptTree(QTreeWidget):
         for root_dept in sorted(roots, key=lambda d: d["name"].lower()):
             add_item(self, root_dept)
 
+        self.setAnimated(animated)
         self.blockSignals(False)
+
+    def _on_item_entered(self, item: QTreeWidgetItem):
+        dept_id = item.data(0, _DEPT_ID_ROLE)
+        if dept_id is None or dept_id == ALL_EMPLOYEES_ID or item.childCount() > 0:
+            return
+        self.dept_hovered.emit(dept_id)
 
     def _on_click(self, item: QTreeWidgetItem):
         dept_id = item.data(0, _DEPT_ID_ROLE)
@@ -227,7 +242,8 @@ class AddDeptDialog(QDialog):
 
         self._parent_combo = QComboBox()
         self._parent_combo.addItem("None (top-level)", None)
-        for d in departments.get_all_depts():
+        all_depts = departments.get_cached_depts() or []
+        for d in all_depts:
             self._parent_combo.addItem(d["name"], d["id"])
         form.addRow("Parent Department:", self._parent_combo)
 
@@ -254,6 +270,7 @@ class AddDeptDialog(QDialog):
 class Sidebar(QWidget):
     dept_selected = pyqtSignal(int, str)
     all_employees_selected = pyqtSignal()
+    dept_hovered = pyqtSignal(int)
     width_changed = pyqtSignal(int)
     sign_out_requested = pyqtSignal()
 
@@ -276,6 +293,7 @@ class Sidebar(QWidget):
         self._tree = DeptTree()
         self._tree.dept_selected.connect(self._on_dept_selected)
         self._tree.all_employees_selected.connect(self._on_all_employees)
+        self._tree.dept_hovered.connect(self.dept_hovered.emit)
         layout.addWidget(self._tree, 1)
 
         layout.addWidget(h_separator())
@@ -323,8 +341,39 @@ class Sidebar(QWidget):
     def refresh_admin_actions(self):
         self._add_dept_btn.setVisible(session.is_admin())
 
-    def refresh(self):
-        self._tree.refresh(self._selected_id)
+    def refresh(self, *, force: bool = False):
+        selected = self._selected_id
+        if force:
+            departments.invalidate()
+
+        def apply_tree(all_depts):
+            self._tree.refresh(selected, all_depts)
+
+        if not force and departments.is_cached():
+            apply_tree(departments.get_all_depts())
+            return
+
+        self._tree.clear()
+        loading = QTreeWidgetItem(self._tree)
+        loading.setText(0, "Loading…")
+        loading.setFlags(Qt.ItemFlag.NoItemFlags)
+
+        def on_success(all_depts):
+            apply_tree(all_depts)
+
+        def on_error(exc: Exception):
+            self._tree.clear()
+            err = QTreeWidgetItem(self._tree)
+            err.setText(0, "Failed to load departments")
+            err.setFlags(Qt.ItemFlag.NoItemFlags)
+            if isinstance(exc, ApiError):
+                QMessageBox.warning(self, "Departments", exc.message)
+
+        run_api_task(
+            lambda: departments.prefetch() if force or not departments.is_cached() else departments.get_all_depts(),
+            on_success,
+            on_error,
+        )
 
     def clear_selection(self):
         self._selected_id = None

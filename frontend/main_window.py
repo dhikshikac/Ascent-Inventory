@@ -2,9 +2,10 @@
 # Two-panel layout: sidebar (left) + stacked right panel (list ↔ detail)
 
 import sys
+from PyQt6.QtCore import Qt, QEventLoop, QTimer
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QStackedWidget, QApplication, QDialog, QMessageBox
+    QStackedWidget, QApplication, QDialog, QMessageBox, QProgressDialog,
 )
 
 from frontend.theme import load_stylesheet, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH
@@ -55,6 +56,7 @@ class MainWindow(QMainWindow):
         self._sidebar.sign_out_requested.connect(self._on_sign_out)
         self._sidebar.dept_selected.connect(self._on_dept_selected)
         self._sidebar.all_employees_selected.connect(self._on_all_employees_selected)
+        self._sidebar.dept_hovered.connect(self._list_view.prefetch_department)
         self._sidebar.width_changed.connect(self._header.set_brand_width)
 
         body.addWidget(self._sidebar)
@@ -85,19 +87,19 @@ class MainWindow(QMainWindow):
         body.addWidget(self._stack, 1)
         root.addLayout(body, 1)
 
-        self._sidebar.refresh()
+        QTimer.singleShot(0, self._sidebar.refresh)
 
     #Slots
-
-    def _on_all_employees_selected(self):
-        self._stack.setCurrentIndex(_LIST_IDX)
-        self._header.clear_search()
-        self._list_view.set_all_employees()
 
     def _on_dept_selected(self, dept_id: int, dept_name: str):
         self._stack.setCurrentIndex(_LIST_IDX)
         self._header.clear_search()
-        self._list_view.set_department(dept_id, dept_name)
+        QTimer.singleShot(0, lambda: self._list_view.set_department(dept_id, dept_name))
+
+    def _on_all_employees_selected(self):
+        self._stack.setCurrentIndex(_LIST_IDX)
+        self._header.clear_search()
+        QTimer.singleShot(0, self._list_view.set_all_employees)
 
     def _show_detail(self, employee_id: str):
         self._header.set_search_visible(False)
@@ -110,23 +112,24 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentIndex(_INV_DETAIL_IDX)
 
     def _show_list(self):
-        self._list_view.refresh()
         self._stack.setCurrentIndex(_LIST_IDX)
         self._header.set_search_visible(self._list_view.has_inventory_rows())
 
     def _on_list_data_changed(self, refresh_sidebar: bool = False):
-        self._list_view.refresh()
+        self._list_view.invalidate_cache()
+        QTimer.singleShot(0, lambda: self._list_view.refresh(force=True))
         if refresh_sidebar:
-            self._sidebar.refresh()
+            QTimer.singleShot(0, lambda: self._sidebar.refresh(force=True))
 
     def _on_detail_data_changed(self, refresh_sidebar: bool = False):
-        self._list_view.refresh()
+        self._list_view.invalidate_cache()
+        QTimer.singleShot(0, lambda: self._list_view.refresh(force=True))
         if refresh_sidebar:
-            self._sidebar.refresh()
+            QTimer.singleShot(0, lambda: self._sidebar.refresh(force=True))
 
     def _on_department_deleted(self):
         self._sidebar.clear_selection()
-        self._sidebar.refresh()
+        self._sidebar.refresh(force=True)
         self._list_view.clear_department()
         self._header.clear_search()
         self._header.set_search_visible(False)
@@ -159,43 +162,64 @@ def authenticate():
     from backend.auth_client import sign_in, AuthError
     from backend import api_server
     import frontend.services.departments as departments
-
-    try:
-        api_server.ensure_running()
-    except RuntimeError as exc:
-        QMessageBox.critical(None, "Server", str(exc))
-        return None
+    from frontend.workers import run_api_task
 
     login = LoginDialog()
     if login.exec() != QDialog.DialogCode.Accepted:
         return None
 
-    try:
-        auth_session = sign_in(login.email(), login.password())
-    except AuthError as exc:
-        QMessageBox.critical(None, "Login failed", exc.message)
-        return None
-    except Exception as exc:
-        QMessageBox.critical(None, "Login failed", str(exc))
-        return None
+    email = login.email()
+    password = login.password()
 
-    client = ApiClient(auth_session["id_token"], auth_session.get("refresh_token"))
-    from frontend.api_client import set_client
-    set_client(client)
+    progress = QProgressDialog("Connecting to server…", None, 0, 0)
+    progress.setWindowTitle("Ascent Inventory")
+    progress.setWindowModality(Qt.WindowModality.ApplicationModal)
+    progress.setMinimumDuration(0)
+    progress.setValue(0)
+    progress.show()
 
-    try:
+    result: dict = {"user": None, "error": None}
+    loop = QEventLoop()
+
+    def _complete_login():
+        api_server.ensure_running()
+        auth_session = sign_in(email, password)
+        client = ApiClient(auth_session["id_token"], auth_session.get("refresh_token"))
+        from frontend.api_client import set_client
+        set_client(client)
         user = client.get("/me")
-    except ApiError as exc:
-        QMessageBox.critical(None, "Login failed", exc.message)
-        clear_client()
+        departments.prefetch()
+        return user, auth_session.get("refresh_token")
+
+    def on_success(payload):
+        user, refresh_token = payload
+        session.set_session(user, refresh_token)
+        result["user"] = user
+        progress.close()
+        loop.quit()
+
+    def on_error(exc: Exception):
+        result["error"] = exc
+        progress.close()
+        loop.quit()
+
+    run_api_task(_complete_login, on_success, on_error)
+    loop.exec()
+
+    if result["error"] is not None:
+        exc = result["error"]
+        if isinstance(exc, RuntimeError):
+            QMessageBox.critical(None, "Server", str(exc))
+        elif isinstance(exc, AuthError):
+            QMessageBox.critical(None, "Login failed", exc.message)
+        elif isinstance(exc, ApiError):
+            QMessageBox.critical(None, "Login failed", exc.message)
+            clear_client()
+        else:
+            QMessageBox.critical(None, "Login failed", str(exc))
         return None
 
-    session.set_session(user, auth_session.get("refresh_token"))
-    try:
-        departments.prefetch()
-    except ApiError:
-        pass
-    return user
+    return result["user"]
 
 
 def run():
