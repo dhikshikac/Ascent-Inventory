@@ -9,5 +9,6 @@ if __name__ == "__main__":
 
 #to make someone an admin (local SQLite):
 # sqlite3 backend/inventory.db "UPDATE app_users SET role = 'admin' WHERE email = 'their@email.com';"
+
 # hosted Postgres (Neon SQL editor):
 # UPDATE app_users SET role = 'admin' WHERE email = 'their@email.com';

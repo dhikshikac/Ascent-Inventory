@@ -146,17 +146,17 @@ class HoverTableWidget(QTableWidget):
             self._repaint_row(row)
 
     def repaint_all_rows(self):
-        for row in range(self.rowCount()):
-            self._repaint_row(row)
         self.viewport().update()
 
     def hovered_row(self) -> int:
         return self._hovered_row
 
     def _repaint_row(self, row: int):
-        if row < 0 or row >= self.rowCount():
+        if row < 0 or row >= self.rowCount() or self.columnCount() == 0:
             return
-        self.viewport().update()
+        left = self.visualRect(self.model().index(row, 0))
+        right = self.visualRect(self.model().index(row, self.columnCount() - 1))
+        self.viewport().update(left.united(right))
 
     def selectionChanged(self, selected, deselected):
         super().selectionChanged(selected, deselected)

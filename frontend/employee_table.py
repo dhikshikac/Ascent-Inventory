@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QHeaderView, QMessageBox, QScrollArea, QStyle, QStyleOptionHeader,
     QSizePolicy,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QRect
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QRect, QTimer
 from PyQt6.QtGui import QIcon, QPalette
 
 import os
@@ -120,7 +120,9 @@ class EmployeeListView(QWidget):
         self._all_emp_cache: list[dict] = []
         self._all_emp_dept_names: dict[int, str] = {}
         self._all_emp_devices: dict[str, list[dict]] = {}
+        self._all_emp_summary_loaded = False
         self._load_generation = 0
+        self._dept_inventory_cache: dict[int, list[dict]] = {}
 
         # Sort state for All Employees view: True = A→Z, False = Z→A
         self._all_emp_sort_asc: bool = True
@@ -281,7 +283,30 @@ class EmployeeListView(QWidget):
         self._delete_dept_btn.setVisible(is_admin)
         self._all_emp_table.hide()
         self._table_scroll.show()
-        self.refresh()
+        self._show_loading_state()
+        QTimer.singleShot(0, self.refresh)
+
+    def prefetch_department(self, dept_id: int) -> None:
+        if dept_id in self._dept_inventory_cache:
+            return
+
+        def on_success(payload):
+            self._dept_inventory_cache[dept_id] = self._rows_from_inventory(payload)
+
+        run_api_task(
+            lambda: departments.get_dept_inventory(dept_id),
+            on_success,
+            None,
+        )
+
+    def _show_loading_state(self) -> None:
+        self._table.setUpdatesEnabled(False)
+        self._table.setRowCount(0)
+        self._table.setUpdatesEnabled(True)
+        self._empty.hide()
+        self._table_scroll.show()
+        self._table.show()
+        self._count_label.setText("Loading…")
 
     def set_all_employees(self):
         """Switch to the All Employees virtual view."""
@@ -295,7 +320,8 @@ class EmployeeListView(QWidget):
         self._table_scroll.hide()
         self._empty.hide()
         self._all_emp_sort_asc = True
-        self._refresh_all_employees()
+        self._show_loading_state()
+        QTimer.singleShot(0, self._refresh_all_employees)
 
     def clear_department(self):
         self._is_all_employees = False
@@ -321,13 +347,18 @@ class EmployeeListView(QWidget):
         else:
             self._render()
 
-    def refresh(self):
+    def refresh(self, *, force: bool = False):
         if self._is_all_employees:
-            self._refresh_all_employees()
+            self._refresh_all_employees(force=force)
             return
         if self._dept_id is None:
             self._all_rows = []
             self._render()
+            return
+
+        if not force and self._dept_id in self._dept_inventory_cache:
+            self._all_rows = self._dept_inventory_cache[self._dept_id]
+            self._schedule_render()
             return
 
         self._load_generation += 1
@@ -339,8 +370,10 @@ class EmployeeListView(QWidget):
             if generation != self._load_generation:
                 return
             self._set_loading(False)
-            self._all_rows = self._rows_from_inventory(payload)
-            self._render()
+            rows = self._rows_from_inventory(payload)
+            self._dept_inventory_cache[dept_id] = rows
+            self._all_rows = rows
+            self._schedule_render()
 
         def on_error(exc: Exception):
             if generation != self._load_generation:
@@ -411,7 +444,16 @@ class EmployeeListView(QWidget):
 
         return rows
 
-    #All Employees helpers
+    def _schedule_render(self) -> None:
+        QTimer.singleShot(0, self._render)
+
+    def invalidate_cache(self, dept_id: int | None = None):
+        if dept_id is None:
+            self._dept_inventory_cache.clear()
+            self._all_emp_summary_loaded = False
+        else:
+            self._dept_inventory_cache.pop(dept_id, None)
+            self._all_emp_summary_loaded = False
 
     def _current_sort_icon(self) -> QIcon:
         return self._icon_sort_up if self._all_emp_sort_asc else self._icon_sort_down
@@ -428,8 +470,11 @@ class EmployeeListView(QWidget):
         )
         self._all_emp_header.updateSection(0)
 
-    def _refresh_all_employees(self):
+    def _refresh_all_employees(self, *, force: bool = False):
         """Fetch All Employees data from the API, then render."""
+        if not force and self._all_emp_summary_loaded:
+            self._render_all_employees()
+            return
         self._load_generation += 1
         generation = self._load_generation
         self._set_loading(True)
@@ -441,6 +486,7 @@ class EmployeeListView(QWidget):
             self._all_emp_dept_names = payload.get("dept_names", {})
             self._all_emp_cache = payload.get("employees", [])
             self._all_emp_devices = payload.get("devices_by_employee", {})
+            self._all_emp_summary_loaded = True
             self._render_all_employees()
 
         def on_error(exc: Exception):
@@ -504,29 +550,32 @@ class EmployeeListView(QWidget):
             f"{count} employee" if count == 1 else f"{count} employees"
         )
 
-        self._all_emp_table.setRowCount(count)
-        for r, emp in enumerate(all_emps):
-            last = emp.get("last_name", "")
-            first = emp.get("first_name", "")
-            display_name = f"{last}, {first}".strip(", ")
-            emp_id = emp.get("employee_id", "")
-            dept_name = dept_names.get(emp.get("dept_id"), "Unassigned")
-            device_preview = self._device_preview(
-                devices_by_employee.get(emp_id, [])
-            )
+        self._all_emp_table.setUpdatesEnabled(False)
+        try:
+            self._all_emp_table.setRowCount(count)
+            for r, emp in enumerate(all_emps):
+                last = emp.get("last_name", "")
+                first = emp.get("first_name", "")
+                display_name = f"{last}, {first}".strip(", ")
+                emp_id = emp.get("employee_id", "")
+                dept_name = dept_names.get(emp.get("dept_id"), "Unassigned")
+                device_preview = self._device_preview(
+                    devices_by_employee.get(emp_id, [])
+                )
 
-            for c, val in enumerate([display_name, emp_id, dept_name, device_preview]):
-                item = QTableWidgetItem(val)
-                item.setData(Qt.ItemDataRole.UserRole, {
-                    "kind": "Employee",
-                    "id": emp_id,
-                })
-                item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                self._all_emp_table.setItem(r, c, item)
-            self._all_emp_table.setRowHeight(r, 40)
-
-        self._all_emp_table.repaint_all_rows()
+                for c, val in enumerate([display_name, emp_id, dept_name, device_preview]):
+                    item = QTableWidgetItem(val)
+                    item.setData(Qt.ItemDataRole.UserRole, {
+                        "kind": "Employee",
+                        "id": emp_id,
+                    })
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self._all_emp_table.setItem(r, c, item)
+                self._all_emp_table.setRowHeight(r, 40)
+        finally:
+            self._all_emp_table.setUpdatesEnabled(True)
+        self._all_emp_table.viewport().update()
 
     def _on_all_emp_header_clicked(self, logical_index: int):
         """Toggle sort direction when the Name column header is clicked."""
@@ -569,21 +618,26 @@ class EmployeeListView(QWidget):
         self._table_scroll.show()
         self._table.show()
         self._count_label.setText(self._count_text(rows))
-        self._table.setRowCount(len(rows))
-
-        for r, row in enumerate(rows):
-            vals = [row.get(key, "") for _, key in _COLUMNS]
-            for c, val in enumerate(vals):
-                item = QTableWidgetItem(str(val))
-                item.setData(Qt.ItemDataRole.UserRole, {
-                    "kind": row.get("_kind"),
-                    "id": row.get("_record_id"),
-                })
-                item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                self._table.setItem(r, c, item)
-            self._table.setRowHeight(r, 40)
-        self._table.repaint_all_rows()
+        self._table.setMouseTracking(False)
+        self._table.setUpdatesEnabled(False)
+        try:
+            self._table.setRowCount(len(rows))
+            for r, row in enumerate(rows):
+                vals = [row.get(key, "") for _, key in _COLUMNS]
+                for c, val in enumerate(vals):
+                    item = QTableWidgetItem(str(val))
+                    item.setData(Qt.ItemDataRole.UserRole, {
+                        "kind": row.get("_kind"),
+                        "id": row.get("_record_id"),
+                    })
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self._table.setItem(r, c, item)
+                self._table.setRowHeight(r, 40)
+        finally:
+            self._table.setUpdatesEnabled(True)
+            self._table.setMouseTracking(True)
+        self._table.viewport().update()
 
     def _on_selection(self):
         sel = self._table.selectedItems()
@@ -606,7 +660,6 @@ class EmployeeListView(QWidget):
         dlg = AddEmployeeDialog(dept_id=self._dept_id, parent=self)
         if dlg.exec() == AddEmployeeDialog.DialogCode.Accepted:
             self.data_changed.emit(False)
-            self.refresh()
 
     def _add_computer(self):
         if self._dept_id is None:
@@ -614,7 +667,6 @@ class EmployeeListView(QWidget):
         dlg = AddComputerDialog(dept_id=self._dept_id, parent=self)
         if dlg.exec() == AddComputerDialog.DialogCode.Accepted:
             self.data_changed.emit(False)
-            self.refresh()
 
     def _add_instrument(self):
         if self._dept_id is None:
@@ -622,7 +674,6 @@ class EmployeeListView(QWidget):
         dlg = AddInstrumentDialog(lab_id=self._dept_id, parent=self)
         if dlg.exec() == AddInstrumentDialog.DialogCode.Accepted:
             self.data_changed.emit(False)
-            self.refresh()
 
     def _delete_department(self):
         if self._dept_id is None:
