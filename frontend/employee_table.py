@@ -1,10 +1,10 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTableWidgetItem, QAbstractItemView,
-    QHeaderView, QMessageBox, QScrollArea, QStyle, QStyleOptionHeader,
+    QHeaderView, QMessageBox, QStyle, QStyleOptionHeader,
     QSizePolicy,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QRect, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QRect, QTimer, QAbstractTableModel, QModelIndex
 from PyQt6.QtGui import QIcon, QPalette
 
 import os
@@ -13,7 +13,7 @@ import frontend.services.departments as departments
 from frontend import session
 from frontend.api_client import ApiError
 from frontend.workers import run_api_task
-from frontend.widgets import primary_button, danger_button, empty_state, HoverTableWidget, computer_label
+from frontend.widgets import primary_button, danger_button, empty_state, HoverTableWidget, HoverTableView, computer_label
 from frontend.dialogs import AddEmployeeDialog, AddComputerDialog, AddInstrumentDialog
 
 _COLUMNS = [
@@ -41,6 +41,51 @@ def _sort_icon(filename: str) -> QIcon:
     icon = QIcon()
     icon.addFile(os.path.join(_MEDIA_DIR, filename), _SORT_ICON_SIZE)
     return icon
+
+
+class InventoryTableModel(QAbstractTableModel):
+    KIND_ROLE = Qt.ItemDataRole.UserRole
+    ID_ROLE = Qt.ItemDataRole.UserRole + 1
+
+    def __init__(self, columns: list[tuple[str, str]], parent=None):
+        super().__init__(parent)
+        self._columns = columns
+        self._rows: list[dict] = []
+
+    def set_rows(self, rows: list[dict]) -> None:
+        self.beginResetModel()
+        self._rows = rows
+        self.endResetModel()
+
+    def rowCount(self, parent=QModelIndex()) -> int:
+        if parent.isValid():
+            return 0
+        return len(self._rows)
+
+    def columnCount(self, parent=QModelIndex()) -> int:
+        if parent.isValid():
+            return 0
+        return len(self._columns)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid():
+            return None
+        row = self._rows[index.row()]
+        col_key = self._columns[index.column()][1]
+        if role == Qt.ItemDataRole.DisplayRole:
+            return str(row.get(col_key, ""))
+        if role == Qt.ItemDataRole.TextAlignmentRole:
+            return int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        if role == self.KIND_ROLE:
+            return row.get("_kind")
+        if role == self.ID_ROLE:
+            return row.get("_record_id")
+        return None
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            return self._columns[section][0]
+        return None
 
 
 class _AllEmpHeaderView(QHeaderView):
@@ -189,29 +234,15 @@ class EmployeeListView(QWidget):
 
         layout.addWidget(sub_header)
 
-        #Main table (department view) 
-        self._table_scroll = QScrollArea()
-        self._table_scroll.setWidgetResizable(True)
-        self._table_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._table_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._table_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-
-        self._table = HoverTableWidget()
-        self._table.setColumnCount(len(_COLUMNS))
-        self._table.setHorizontalHeaderLabels([c[0] for c in _COLUMNS])
-        for i in range(len(_COLUMNS)):
-            header_item = self._table.horizontalHeaderItem(i)
-            if header_item:
-                header_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._table_model = InventoryTableModel(_COLUMNS, self)
+        self._table = HoverTableView(self)
+        self._table.setModel(self._table_model)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self._table.setAlternatingRowColors(False)
-        self._table.verticalHeader().setVisible(False)
-        self._table.setShowGrid(False)
         self._table.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
+        self._table.verticalHeader().setDefaultSectionSize(40)
 
         table_header = self._table.horizontalHeader()
         table_header.setMinimumSectionSize(80)
@@ -221,11 +252,9 @@ class EmployeeListView(QWidget):
             self._table.setColumnWidth(col, width)
         for col in (2, 4, 5):
             table_header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
-        self._table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._table.itemSelectionChanged.connect(self._on_selection)
+        self._table.selectionModel().selectionChanged.connect(self._on_selection)
 
-        self._table_scroll.setWidget(self._table)
-        layout.addWidget(self._table_scroll, 1)
+        layout.addWidget(self._table, 1)
 
         #All Employees table
         self._all_emp_table = HoverTableWidget()
@@ -277,34 +306,36 @@ class EmployeeListView(QWidget):
         self._dept_id = dept_id
         self._dept_name = dept_name
         self._dept_label.setText(dept_name)
+        self._count_label.setText("Loading…")
+        self._all_emp_table.hide()
+        self._empty.hide()
+        self._table_model.set_rows([])
+        self._table.show()
+        QTimer.singleShot(0, self._finish_set_department)
+
+    def _finish_set_department(self):
         is_admin = session.is_admin()
         for btn in (self._add_emp_btn, self._add_comp_btn, self._add_inst_btn, self._delete_dept_btn):
             btn.setEnabled(is_admin)
         self._delete_dept_btn.setVisible(is_admin)
-        self._all_emp_table.hide()
-        self._table_scroll.show()
-        self._show_loading_state()
-        QTimer.singleShot(0, self.refresh)
+        self.refresh()
 
     def prefetch_department(self, dept_id: int) -> None:
         if dept_id in self._dept_inventory_cache:
             return
 
-        def on_success(payload):
-            self._dept_inventory_cache[dept_id] = self._rows_from_inventory(payload)
+        def on_success(rows):
+            self._dept_inventory_cache[dept_id] = rows
 
         run_api_task(
-            lambda: departments.get_dept_inventory(dept_id),
+            lambda: self._rows_from_inventory(departments.get_dept_inventory(dept_id)),
             on_success,
             None,
         )
 
     def _show_loading_state(self) -> None:
-        self._table.setUpdatesEnabled(False)
-        self._table.setRowCount(0)
-        self._table.setUpdatesEnabled(True)
+        self._table_model.set_rows([])
         self._empty.hide()
-        self._table_scroll.show()
         self._table.show()
         self._count_label.setText("Loading…")
 
@@ -317,7 +348,7 @@ class EmployeeListView(QWidget):
         for btn in (self._add_emp_btn, self._add_comp_btn, self._add_inst_btn, self._delete_dept_btn):
             btn.setEnabled(False)
         self._delete_dept_btn.hide()
-        self._table_scroll.hide()
+        self._table.hide()
         self._empty.hide()
         self._all_emp_sort_asc = True
         self._show_loading_state()
@@ -334,7 +365,7 @@ class EmployeeListView(QWidget):
             btn.setEnabled(False)
         self._delete_dept_btn.hide()
         self._all_emp_table.hide()
-        self._table_scroll.show()
+        self._table.show()
         self._render()
 
     def has_inventory_rows(self) -> bool:
@@ -366,11 +397,14 @@ class EmployeeListView(QWidget):
         dept_id = self._dept_id
         self._set_loading(True)
 
-        def on_success(payload):
+        def fetch():
+            payload = departments.get_dept_inventory(dept_id)
+            return self._rows_from_inventory(payload)
+
+        def on_success(rows):
             if generation != self._load_generation:
                 return
             self._set_loading(False)
-            rows = self._rows_from_inventory(payload)
             self._dept_inventory_cache[dept_id] = rows
             self._all_rows = rows
             self._schedule_render()
@@ -382,11 +416,7 @@ class EmployeeListView(QWidget):
             message = exc.message if isinstance(exc, ApiError) else str(exc)
             QMessageBox.warning(self, "Load failed", message)
 
-        run_api_task(
-            lambda: departments.get_dept_inventory(dept_id),
-            on_success,
-            on_error,
-        )
+        run_api_task(fetch, on_success, on_error)
 
     def _set_loading(self, loading: bool) -> None:
         if loading:
@@ -500,7 +530,7 @@ class EmployeeListView(QWidget):
 
     def _render_all_employees(self):
         """Render the All Employees table from cached data (no API calls)."""
-        self._table_scroll.hide()
+        self._table.hide()
         self._empty.hide()
         self._all_emp_table.show()
         self._set_all_emp_name_header()
@@ -598,14 +628,13 @@ class EmployeeListView(QWidget):
             if not f or f in self._row_search_text(row)
         ]
 
-        self._table.setRowCount(0) 
-        self.search_available_changed.emit(bool(self._all_rows)) 
+        self.search_available_changed.emit(bool(self._all_rows))
         if not rows:
-            self._table.hide() 
-            self._table_scroll.hide()  
-            self._empty.show() 
-            if self._empty_label: 
-                if self._dept_id is None: 
+            self._table_model.set_rows([])
+            self._table.hide()
+            self._empty.show()
+            if self._empty_label:
+                if self._dept_id is None:
                     self._empty_label.setText("Select a department to view inventory.")
                 elif self._all_rows:
                     self._empty_label.setText("No matching inventory found.")
@@ -615,42 +644,23 @@ class EmployeeListView(QWidget):
             return
 
         self._empty.hide()
-        self._table_scroll.show()
         self._table.show()
         self._count_label.setText(self._count_text(rows))
-        self._table.setMouseTracking(False)
-        self._table.setUpdatesEnabled(False)
-        try:
-            self._table.setRowCount(len(rows))
-            for r, row in enumerate(rows):
-                vals = [row.get(key, "") for _, key in _COLUMNS]
-                for c, val in enumerate(vals):
-                    item = QTableWidgetItem(str(val))
-                    item.setData(Qt.ItemDataRole.UserRole, {
-                        "kind": row.get("_kind"),
-                        "id": row.get("_record_id"),
-                    })
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    self._table.setItem(r, c, item)
-                self._table.setRowHeight(r, 40)
-        finally:
-            self._table.setUpdatesEnabled(True)
-            self._table.setMouseTracking(True)
-        self._table.viewport().update()
+        self._table_model.set_rows(rows)
 
-    def _on_selection(self):
-        sel = self._table.selectedItems()
-        if sel:
-            data = sel[0].data(Qt.ItemDataRole.UserRole) or {}
-            kind = data.get("kind")
-            record_id = data.get("id")
-            if kind == "Employee" and record_id:
-                self.employee_selected.emit(record_id)
-            elif kind == "Computer" and record_id is not None:
-                self.computer_selected.emit(int(record_id))
-            elif kind == "Instrument" and record_id is not None:
-                self.instrument_selected.emit(int(record_id))
+    def _on_selection(self, _selected=None, _deselected=None):
+        indexes = self._table.selectionModel().selectedRows()
+        if not indexes:
+            return
+        idx = indexes[0]
+        kind = self._table_model.data(idx, InventoryTableModel.KIND_ROLE)
+        record_id = self._table_model.data(idx, InventoryTableModel.ID_ROLE)
+        if kind == "Employee" and record_id:
+            self.employee_selected.emit(record_id)
+        elif kind == "Computer" and record_id is not None:
+            self.computer_selected.emit(int(record_id))
+        elif kind == "Instrument" and record_id is not None:
+            self.instrument_selected.emit(int(record_id))
 
     #Button actions
 

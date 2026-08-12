@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QComboBox, QMessageBox, QPushButton,
     QStyledItemDelegate, QStyle, QStyleOptionViewItem,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QRect
+from PyQt6.QtCore import Qt, pyqtSignal, QRect, QTimer
 from PyQt6.QtGui import QIcon, QColor, QPainter
 
 import frontend.services.departments as departments
@@ -122,7 +122,7 @@ class DeptTree(QTreeWidget):
         super().__init__(parent)
         self.setHeaderHidden(True)
         self.setIndentation(16)
-        self.setAnimated(True)
+        self.setAnimated(False)
         self.setRootIsDecorated(False)
         self.itemClicked.connect(self._on_click)
         self.itemEntered.connect(self._on_item_entered)
@@ -214,7 +214,8 @@ class DeptTree(QTreeWidget):
         else:
             self.clearSelection()
             item.setSelected(True)
-            self.dept_selected.emit(dept_id, dept_name)
+            self.dept_hovered.emit(dept_id)
+            QTimer.singleShot(0, lambda d=dept_id, n=dept_name: self.dept_selected.emit(d, n))
 
 
 class AddDeptDialog(QDialog):

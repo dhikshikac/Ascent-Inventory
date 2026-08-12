@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QFrame, QSizePolicy, QPushButton,
-    QStyledItemDelegate, QStyle, QTableWidget,
+    QStyledItemDelegate, QStyle, QTableWidget, QTableView,
 )
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QColor
@@ -97,7 +97,7 @@ class HoverRowDelegate(QStyledItemDelegate):
 
     def paint(self, painter, option, index):
         table = self.parent()
-        if isinstance(table, HoverTableWidget):
+        if hasattr(table, "hovered_row"):
             painter.save()
             if option.state & QStyle.StateFlag.State_Selected:
                 painter.fillRect(option.rect, _SELECTED_COLOR)
@@ -110,53 +110,58 @@ class HoverRowDelegate(QStyledItemDelegate):
         super().paint(painter, option, index)
 
 
-class HoverTableWidget(QTableWidget):
-    """QTableWidget that highlights the entire hovered row."""
+class _HoverRowMixin:
+    _hovered_row = -1
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._hovered_row = -1
+    def _install_hover_tracking(self):
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
         self.viewport().installEventFilter(self)
         self.setItemDelegate(HoverRowDelegate(self))
-        self.cellEntered.connect(self._on_cell_entered)
-
-    def eventFilter(self, source, event):
-        if source is self.viewport():
-            if event.type() == QEvent.Type.MouseMove:
-                item = self.itemAt(event.pos())
-                new_row = item.row() if item else -1
-                if new_row != self._hovered_row:
-                    old_row = self._hovered_row
-                    self._hovered_row = new_row
-                    self._repaint_row(old_row)
-                    self._repaint_row(new_row)
-            elif event.type() == QEvent.Type.Leave:
-                old_row = self._hovered_row
-                self._hovered_row = -1
-                self._repaint_row(old_row)
-        return super().eventFilter(source, event)
-
-    def _on_cell_entered(self, row: int, _column: int):
-        if row != self._hovered_row:
-            old_row = self._hovered_row
-            self._hovered_row = row
-            self._repaint_row(old_row)
-            self._repaint_row(row)
-
-    def repaint_all_rows(self):
-        self.viewport().update()
 
     def hovered_row(self) -> int:
         return self._hovered_row
 
     def _repaint_row(self, row: int):
-        if row < 0 or row >= self.rowCount() or self.columnCount() == 0:
+        model = self.model()
+        if row < 0 or model is None or row >= model.rowCount() or model.columnCount() == 0:
             return
-        left = self.visualRect(self.model().index(row, 0))
-        right = self.visualRect(self.model().index(row, self.columnCount() - 1))
+        left = self.visualRect(model.index(row, 0))
+        right = self.visualRect(model.index(row, model.columnCount() - 1))
         self.viewport().update(left.united(right))
+
+    def _set_hovered_row(self, new_row: int):
+        if new_row == self._hovered_row:
+            return
+        old_row = self._hovered_row
+        self._hovered_row = new_row
+        self._repaint_row(old_row)
+        self._repaint_row(new_row)
+
+    def eventFilter(self, source, event):
+        if source is self.viewport():
+            if event.type() == QEvent.Type.MouseMove:
+                index = self.indexAt(event.pos())
+                self._set_hovered_row(index.row() if index.isValid() else -1)
+            elif event.type() == QEvent.Type.Leave:
+                self._set_hovered_row(-1)
+        return super().eventFilter(source, event)
+
+
+class HoverTableWidget(QTableWidget, _HoverRowMixin):
+    """QTableWidget that highlights the entire hovered row."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._hovered_row = -1
+        self._install_hover_tracking()
+        self.cellEntered.connect(self._on_cell_entered)
+
+    def _on_cell_entered(self, row: int, _column: int):
+        self._set_hovered_row(row)
+
+    def repaint_all_rows(self):
+        self.viewport().update()
 
     def selectionChanged(self, selected, deselected):
         super().selectionChanged(selected, deselected)
@@ -164,3 +169,24 @@ class HoverTableWidget(QTableWidget):
             self._repaint_row(idx.row())
         for idx in selected.indexes():
             self._repaint_row(idx.row())
+
+
+class HoverTableView(QTableView, _HoverRowMixin):
+    """QTableView that highlights the entire hovered row."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._hovered_row = -1
+        self._install_hover_tracking()
+
+    def setModel(self, model):
+        super().setModel(model)
+        selection = self.selectionModel()
+        if selection is not None:
+            selection.selectionChanged.connect(self._on_selection_changed)
+
+    def _on_selection_changed(self, selected, deselected):
+        for index in deselected.indexes():
+            self._repaint_row(index.row())
+        for index in selected.indexes():
+            self._repaint_row(index.row())
