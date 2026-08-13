@@ -1,0 +1,14 @@
+name: Keep API Warm
+
+on:
+  schedule:
+    # Every 10 minutes (Render free tier sleeps after ~15 min idle)
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: curl -fsS https://ascent-inventory.onrender.com/health
